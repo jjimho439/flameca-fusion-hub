@@ -183,134 +183,208 @@ async function handlePasswordReset(supabaseAdmin: any, data: any, adminSettings:
   }
 }
 
-// Handle new order notifications
+// Handle new order notifications (WhatsApp only to admin)
 async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { order_id, customer_name, total_amount, items } = data;
   
-  if (!adminSettings.sms_enabled || !adminSettings.sms_phone) {
-    return false;
-  }
-
   const itemsText = items.slice(0, 2).map((item: any) => item.name).join(", ");
   const moreItems = items.length > 2 ? ` y ${items.length - 2} más` : "";
   
-  const baseMessage = `🛍️ NUEVO PEDIDO #${order_id}\nCliente: ${customer_name}\nTotal: ${total_amount}€\nProductos: ${itemsText}${moreItems}`;
-
-  let notificationsSent = 0;
+  const message = `🛍️ NUEVO PEDIDO #${order_id}\nCliente: ${customer_name}\nTotal: ${total_amount}€\nProductos: ${itemsText}${moreItems}\n\nFlamenca Store`;
 
   try {
-    // 1. Enviar al admin siempre
-    const adminMessage = `👑 [ADMIN] ${baseMessage}\n\nFlamenca Store`;
-    const { data: adminResult, error: adminError } = await supabaseAdmin.functions.invoke("send-sms", {
-      body: {
-        phone: adminSettings.sms_phone,
-        message: adminMessage,
-        user_id: adminSettings.user_id,
-      },
-    });
+    // Solo enviar WhatsApp al admin
+    if (adminSettings.whatsapp_enabled && adminSettings.whatsapp_phone) {
+      const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
+        body: {
+          phone: adminSettings.whatsapp_phone,
+          message: message,
+          user_id: adminSettings.user_id,
+        },
+      });
 
-    if (!adminError) {
-      notificationsSent++;
-      console.log("New order notification sent to admin");
-    }
-
-    // 2. Enviar a empleados en turno activo (check-in sin check-out)
-    const activeEmployees = await getActiveEmployees(supabaseAdmin);
-
-    if (activeEmployees.length > 0) {
-      console.log(`Found ${activeEmployees.length} employees on active shift`);
-      
-      for (const entry of activeEmployees) {
-        const employee = entry.profiles;
-        if (employee.phone) {
-          try {
-            const employeeMessage = `👷 [EMPLEADO] ${baseMessage}\n\nFlamenca Store`;
-            const { data: employeeResult, error: employeeError } = await supabaseAdmin.functions.invoke("send-sms", {
-              body: {
-                phone: employee.phone,
-                message: employeeMessage,
-                user_id: entry.user_id,
-              },
-            });
-
-            if (!employeeError) {
-              notificationsSent++;
-              console.log(`New order notification sent to employee: ${employee.full_name}`);
-            }
-          } catch (error) {
-            console.error(`Error sending notification to employee ${employee.full_name}:`, error);
-          }
-        }
+      if (!error) {
+        console.log("New order WhatsApp sent to admin");
+        return true;
+      } else {
+        console.error("Error sending new order WhatsApp:", error);
+        return false;
       }
     } else {
-      console.log("No employees on active shift found");
+      console.log("WhatsApp not enabled for admin, skipping new order notification");
+      return false;
     }
 
-    console.log(`Total notifications sent: ${notificationsSent}`);
-    return notificationsSent > 0;
-
   } catch (error) {
-    console.error("Error sending new order notifications:", error);
+    console.error("Error sending new order notification:", error);
     return false;
   }
 }
 
-// Handle low stock notifications (WhatsApp)
+// Handle low stock notifications (Email + WhatsApp)
 async function handleLowStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { products } = data;
   
-  if (!adminSettings.whatsapp_enabled || !adminSettings.whatsapp_phone) {
-    return false;
-  }
-
   const productsText = products.map((product: any) => 
     `• ${product.name}: ${product.stock} unidades`
   ).join("\n");
   
-  const message = `⚠️ STOCK BAJO\n\n${productsText}\n\nRevisa el inventario en Flamenca Store`;
+  let notificationsSent = 0;
 
   try {
-    const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
-      body: {
-        phone: adminSettings.whatsapp_phone,
-        message: message,
-        user_id: adminSettings.user_id,
-      },
-    });
+    // 1. Enviar EMAIL al admin (siempre)
+    if (adminSettings.email_enabled && adminSettings.email) {
+      try {
+        const emailSubject = `⚠️ Stock Bajo - Flamenca Store`;
+        const emailBody = `
+          <h2>⚠️ Alerta de Stock Bajo</h2>
+          <p>Los siguientes productos tienen stock bajo:</p>
+          <ul>
+            ${products.map((product: any) => `<li><strong>${product.name}:</strong> ${product.stock} unidades</li>`).join('')}
+          </ul>
+          <p><strong>Acción recomendada:</strong> Revisar inventario y realizar pedido de reposición.</p>
+          <hr>
+          <p><em>Flamenca Store - Sistema de Gestión</em></p>
+        `;
 
-    return !error;
+        const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+          body: {
+            email: adminSettings.email,
+            subject: emailSubject,
+            body: emailBody,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!emailError) {
+          notificationsSent++;
+          console.log("Low stock EMAIL sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending low stock email to admin:", error);
+      }
+    }
+
+    // 2. Enviar WhatsApp al admin (si está habilitado)
+    if (adminSettings.whatsapp_enabled && adminSettings.whatsapp_phone) {
+      try {
+        const message = `⚠️ STOCK BAJO\n\n${productsText}\n\nRevisa el inventario en Flamenca Store`;
+
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
+          body: {
+            phone: adminSettings.whatsapp_phone,
+            message: message,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("Low stock WhatsApp sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending low stock WhatsApp:", error);
+      }
+    }
+
+    return notificationsSent > 0;
   } catch (error) {
-    console.error("Error sending low stock WhatsApp:", error);
+    console.error("Error sending low stock notifications:", error);
     return false;
   }
 }
 
-// Handle critical stock notifications (SMS)
+// Handle out of stock notifications (Email + SMS + WhatsApp - ALL CHANNELS)
 async function handleCriticalStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { products } = data;
   
-  if (!adminSettings.sms_enabled || !adminSettings.sms_phone) {
-    return false;
-  }
-
   const productsText = products.map((product: any) => 
     `${product.name} (${product.stock})`
   ).join(", ");
   
-  const message = `🚨 STOCK CRÍTICO: ${productsText} - Flamenca Store`;
+  let notificationsSent = 0;
 
   try {
-    const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
-      body: {
-        phone: adminSettings.sms_phone,
-        message: message,
-        user_id: adminSettings.user_id,
-      },
-    });
+    // 1. Enviar EMAIL al admin (siempre - URGENTE)
+    if (adminSettings.email_enabled && adminSettings.email) {
+      try {
+        const emailSubject = `🚨 STOCK AGOTADO - Flamenca Store`;
+        const emailBody = `
+          <h2 style="color: red;">🚨 ALERTA: PRODUCTOS AGOTADOS</h2>
+          <p><strong>Los siguientes productos están completamente agotados:</strong></p>
+          <ul>
+            ${products.map((product: any) => `<li><strong>${product.name}:</strong> ${product.stock} unidades</li>`).join('')}
+          </ul>
+          <p style="color: red; font-weight: bold;">🚨 ACCIÓN INMEDIATA REQUERIDA: Realizar pedido de emergencia URGENTE.</p>
+          <hr>
+          <p><em>Flamenca Store - Sistema de Gestión</em></p>
+        `;
 
-    return !error;
+        const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+          body: {
+            email: adminSettings.email,
+            subject: emailSubject,
+            body: emailBody,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!emailError) {
+          notificationsSent++;
+          console.log("Out of stock EMAIL sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending out of stock email to admin:", error);
+      }
+    }
+
+    // 2. Enviar SMS al admin (si está habilitado - URGENTE)
+    if (adminSettings.sms_enabled && adminSettings.sms_phone) {
+      try {
+        const message = `🚨 STOCK AGOTADO: ${productsText} - Flamenca Store`;
+
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
+          body: {
+            phone: adminSettings.sms_phone,
+            message: message,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("Out of stock SMS sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending out of stock SMS:", error);
+      }
+    }
+
+    // 3. Enviar WhatsApp al admin (si está habilitado - URGENTE)
+    if (adminSettings.whatsapp_enabled && adminSettings.whatsapp_phone) {
+      try {
+        const whatsappMessage = `🚨 STOCK AGOTADO\n\n${productsText}\n\n🚨 ACCIÓN INMEDIATA REQUERIDA\n\nFlamenca Store`;
+
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
+          body: {
+            phone: adminSettings.whatsapp_phone,
+            message: whatsappMessage,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("Out of stock WhatsApp sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending out of stock WhatsApp:", error);
+      }
+    }
+
+    return notificationsSent > 0;
   } catch (error) {
-    console.error("Error sending critical stock SMS:", error);
+    console.error("Error sending out of stock notifications:", error);
     return false;
   }
 }
@@ -372,56 +446,144 @@ async function handleCheckInOut(supabaseAdmin: any, data: any, adminSettings: an
   return false;
 }
 
-// Handle incident notifications (SMS)
+// Handle incident notifications (Email + SMS)
 async function handleIncident(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { incident_title, incident_type, reported_by, priority } = data;
   
-  if (!adminSettings.sms_enabled || !adminSettings.sms_phone) {
-    return false;
-  }
-
   const priorityEmoji = priority === 'high' ? '🚨' : priority === 'medium' ? '⚠️' : 'ℹ️';
+  const priorityColor = priority === 'high' ? 'red' : priority === 'medium' ? 'orange' : 'blue';
   
-  const message = `${priorityEmoji} INCIDENCIA ${priority.toUpperCase()}\n\nTipo: ${incident_type}\nTítulo: ${incident_title}\nReportado por: ${reported_by}\n\nFlamenca Store`;
+  let notificationsSent = 0;
 
   try {
-    const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
-      body: {
-        phone: adminSettings.sms_phone,
-        message: message,
-        user_id: adminSettings.user_id,
-      },
-    });
+    // 1. Enviar EMAIL al admin (siempre)
+    if (adminSettings.email_enabled && adminSettings.email) {
+      try {
+        const emailSubject = `${priorityEmoji} Incidencia ${priority.toUpperCase()} - Flamenca Store`;
+        const emailBody = `
+          <h2 style="color: ${priorityColor};">${priorityEmoji} Nueva Incidencia Reportada</h2>
+          <p><strong>Prioridad:</strong> <span style="color: ${priorityColor}; font-weight: bold;">${priority.toUpperCase()}</span></p>
+          <p><strong>Tipo:</strong> ${incident_type}</p>
+          <p><strong>Título:</strong> ${incident_title}</p>
+          <p><strong>Reportado por:</strong> ${reported_by}</p>
+          <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES')}</p>
+          <hr>
+          <p><em>Flamenca Store - Sistema de Gestión</em></p>
+        `;
 
-    return !error;
+        const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+          body: {
+            email: adminSettings.email,
+            subject: emailSubject,
+            body: emailBody,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!emailError) {
+          notificationsSent++;
+          console.log("Incident EMAIL sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending incident email to admin:", error);
+      }
+    }
+
+    // 2. Enviar SMS al admin (si está habilitado)
+    if (adminSettings.sms_enabled && adminSettings.sms_phone) {
+      try {
+        const message = `${priorityEmoji} INCIDENCIA ${priority.toUpperCase()}\n\nTipo: ${incident_type}\nTítulo: ${incident_title}\nReportado por: ${reported_by}\n\nFlamenca Store`;
+
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
+          body: {
+            phone: adminSettings.sms_phone,
+            message: message,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("Incident SMS sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending incident SMS:", error);
+      }
+    }
+
+    return notificationsSent > 0;
   } catch (error) {
-    console.error("Error sending incident SMS:", error);
+    console.error("Error sending incident notifications:", error);
     return false;
   }
 }
 
-// Handle payment issue notifications (SMS)
+// Handle payment issue notifications (Email + SMS)
 async function handlePaymentIssue(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { order_id, customer_name, issue_type, amount } = data;
   
-  if (!adminSettings.sms_enabled || !adminSettings.sms_phone) {
-    return false;
-  }
-
-  const message = `💳 PROBLEMA DE PAGO\n\nPedido: #${order_id}\nCliente: ${customer_name}\nProblema: ${issue_type}\nImporte: ${amount}€\n\nFlamenca Store`;
+  let notificationsSent = 0;
 
   try {
-    const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
-      body: {
-        phone: adminSettings.sms_phone,
-        message: message,
-        user_id: adminSettings.user_id,
-      },
-    });
+    // 1. Enviar EMAIL al admin (siempre - URGENTE)
+    if (adminSettings.email_enabled && adminSettings.email) {
+      try {
+        const emailSubject = `💳 Problema de Pago - Pedido #${order_id} - Flamenca Store`;
+        const emailBody = `
+          <h2 style="color: red;">💳 Problema de Pago Detectado</h2>
+          <p><strong>Número de Pedido:</strong> #${order_id}</p>
+          <p><strong>Cliente:</strong> ${customer_name}</p>
+          <p><strong>Tipo de Problema:</strong> ${issue_type}</p>
+          <p><strong>Importe:</strong> ${amount}€</p>
+          <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES')}</p>
+          <p style="color: red; font-weight: bold;">⚠️ ACCIÓN REQUERIDA: Revisar y resolver el problema de pago.</p>
+          <hr>
+          <p><em>Flamenca Store - Sistema de Gestión</em></p>
+        `;
 
-    return !error;
+        const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+          body: {
+            email: adminSettings.email,
+            subject: emailSubject,
+            body: emailBody,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!emailError) {
+          notificationsSent++;
+          console.log("Payment issue EMAIL sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending payment issue email to admin:", error);
+      }
+    }
+
+    // 2. Enviar SMS al admin (si está habilitado - URGENTE)
+    if (adminSettings.sms_enabled && adminSettings.sms_phone) {
+      try {
+        const message = `💳 PROBLEMA DE PAGO\n\nPedido: #${order_id}\nCliente: ${customer_name}\nProblema: ${issue_type}\nImporte: ${amount}€\n\nFlamenca Store`;
+
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
+          body: {
+            phone: adminSettings.sms_phone,
+            message: message,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("Payment issue SMS sent to admin");
+        }
+      } catch (error) {
+        console.error("Error sending payment issue SMS:", error);
+      }
+    }
+
+    return notificationsSent > 0;
   } catch (error) {
-    console.error("Error sending payment issue SMS:", error);
+    console.error("Error sending payment issue notifications:", error);
     return false;
   }
 }

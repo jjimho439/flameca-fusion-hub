@@ -86,8 +86,8 @@ export const useAutoNotifications = () => {
     }
   }, []);
 
-  // Notificar stock crítico (SMS)
-  const notifyCriticalStock = useCallback(async (products: Array<{
+  // Notificar stock agotado (Email + SMS + WhatsApp)
+  const notifyOutOfStock = useCallback(async (products: Array<{
     name: string;
     stock: number;
     id: string;
@@ -95,20 +95,20 @@ export const useAutoNotifications = () => {
     try {
       const { data, error } = await supabase.functions.invoke("auto-notify", {
         body: {
-          type: "critical_stock",
+          type: "critical_stock", // Mantenemos el tipo para compatibilidad
           data: { products },
         },
       });
 
       if (error) {
-        console.error("Error sending critical stock notification:", error);
+        console.error("Error sending out of stock notification:", error);
         return false;
       }
 
-      console.log("Critical stock notification sent:", data);
+      console.log("Out of stock notification sent:", data);
       return true;
     } catch (error) {
-      console.error("Error in notifyCriticalStock:", error);
+      console.error("Error in notifyOutOfStock:", error);
       return false;
     }
   }, []);
@@ -201,7 +201,7 @@ export const useAutoNotifications = () => {
     notifyPasswordReset,
     notifyNewOrder,
     notifyLowStock,
-    notifyCriticalStock,
+    notifyOutOfStock,
     notifyCheckInOut,
     notifyIncident,
     notifyPaymentIssue,

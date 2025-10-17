@@ -19,6 +19,7 @@ import { getRoleLabel, getRoleColor, Permission } from "@/lib/permissions";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
+import { NotificationBell } from "@/components/NotificationBell";
 
 interface MenuItem {
   title: string;
@@ -140,6 +141,10 @@ export function AppSidebar() {
                 </Badge>
               </>
             )}
+            {/* Componente de notificaciones */}
+            <div className="flex justify-center">
+              <NotificationBell />
+            </div>
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
