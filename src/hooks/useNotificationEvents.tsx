@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { useAppNotifications } from "./useAppNotifications";
+import { useNotificationContext } from "@/contexts/NotificationContext";
 
 export const useNotificationEvents = () => {
-  const { addNotification } = useAppNotifications();
+  const { addNotification } = useNotificationContext();
 
   useEffect(() => {
     // Función para manejar nuevos pedidos

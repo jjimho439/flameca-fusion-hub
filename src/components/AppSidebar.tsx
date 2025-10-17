@@ -19,7 +19,7 @@ import { getRoleLabel, getRoleColor, Permission } from "@/lib/permissions";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-import { useAppNotifications } from "@/hooks/useAppNotifications";
+import { useNotificationContext } from "@/contexts/NotificationContext";
 
 interface MenuItem {
   title: string;
@@ -46,7 +46,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { userRole, can, loading, user } = useUserRole();
   const { settings } = useAppSettings();
-  const { sectionCounts, markAsRead } = useAppNotifications();
+  const { sectionCounts, markAsRead } = useNotificationContext();
   const [userName, setUserName] = useState<string>("");
   
   // En móvil siempre mostramos textos, en desktop depende del estado
@@ -150,9 +150,7 @@ export function AppSidebar() {
                 const notificationCount = item.section ? sectionCounts[item.section] || 0 : 0;
                 
                 // Debug: mostrar contadores en consola
-                if (item.section && notificationCount > 0) {
-                  console.log(`Notificaciones en ${item.section}:`, notificationCount);
-                }
+                console.log(`Sección ${item.section}:`, notificationCount, 'Total sectionCounts:', sectionCounts);
                 
                 return (
                   <SidebarMenuItem key={item.title}>

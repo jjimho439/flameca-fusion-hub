@@ -15,6 +15,7 @@ import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { useNotificationEvents } from "@/hooks/useNotificationEvents";
+import { NotificationProvider } from "@/contexts/NotificationContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
@@ -83,9 +84,10 @@ const App = () => (
       <TooltipProvider>
         <ThemeProvider>
           <AppSettingsProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
+            <NotificationProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/auth" element={<Auth />} />
@@ -100,7 +102,8 @@ const App = () => (
             <Route path="/settings" element={<ProtectedRoute><SessionManager><LayoutWithSidebar><Settings /></LayoutWithSidebar></SessionManager></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-          </BrowserRouter>
+              </BrowserRouter>
+            </NotificationProvider>
           </AppSettingsProvider>
         </ThemeProvider>
       </TooltipProvider>

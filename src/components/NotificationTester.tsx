@@ -1,10 +1,10 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAppNotifications } from "@/hooks/useAppNotifications";
+import { useNotificationContext } from "@/contexts/NotificationContext";
 
 export const NotificationTester: React.FC = () => {
-  const { simulateNotification } = useAppNotifications();
+  const { simulateNotification } = useNotificationContext();
 
   const testNotifications = [
     { type: 'new_order' as const, label: '🛍️ Nuevo Pedido' },
