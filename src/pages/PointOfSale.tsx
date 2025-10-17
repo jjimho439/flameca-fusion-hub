@@ -12,13 +12,14 @@ import { LoadingSpinner, LoadingOverlay } from "@/components/LoadingSpinner";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useWooCommerceProducts } from "@/hooks/useWooCommerceProducts";
 import { useNotifications } from "@/hooks/useNotifications";
+import { toast } from "sonner";
 import { ShoppingCart, Trash2, CreditCard, Banknote, Plus, Minus, Search, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Product, CartItem } from "@/types";
 
 export default function PointOfSale() {
   const { can } = useUserRole();
   const { products, loading: productsLoading, updateProductStock } = useWooCommerceProducts();
-  const { showSuccess, showError, showPromise } = useNotifications();
+  const { showSuccess, showPromise } = useNotifications();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -45,7 +46,7 @@ export default function PointOfSale() {
     
     if (existingItem) {
       if (existingItem.quantity >= product.stock) {
-        showError(`Stock máximo alcanzado (${product.stock} disponibles)`);
+        toast.error(`Stock máximo alcanzado (${product.stock} disponibles)`);
         return;
       }
       updateQuantity(product.id, existingItem.quantity + 1);
@@ -67,7 +68,7 @@ export default function PointOfSale() {
     if (!product) return;
 
     if (newQuantity > product.stock) {
-      showError(`Stock máximo: ${product.stock} unidades`);
+      toast.error(`Stock máximo: ${product.stock} unidades`);
       return;
     }
 
@@ -107,7 +108,7 @@ export default function PointOfSale() {
 
   const processSale = async () => {
     if (cartItems.length === 0) {
-      showError("El carrito está vacío");
+      toast.error("El carrito está vacío");
       return;
     }
 
@@ -178,7 +179,7 @@ export default function PointOfSale() {
       
       showSuccess(`¡Venta realizada! Total: ${totalAmount.toFixed(2)}€`);
     } catch (error: any) {
-      showError("Error al procesar la venta: " + error.message);
+      toast.error("Error al procesar la venta: " + error.message);
     } finally {
       setProcessing(false);
     }
