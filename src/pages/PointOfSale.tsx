@@ -19,7 +19,7 @@ import { Product, CartItem } from "@/types";
 export default function PointOfSale() {
   const { can } = useUserRole();
   const { products, loading: productsLoading, updateProductStock } = useWooCommerceProducts();
-  const { showSuccess, showPromise } = useNotifications();
+  const { showPromise } = useNotifications();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -59,7 +59,7 @@ export default function PointOfSale() {
         subtotal: product.price,
       };
       setCartItems([...cartItems, newItem]);
-      showSuccess(`${product.name} agregado al carrito`);
+      toast.success(`${product.name} agregado al carrito`);
     }
   };
 
@@ -177,7 +177,7 @@ export default function PointOfSale() {
       setDiscountAmount(0);
       fetchProducts();
       
-      showSuccess(`¡Venta realizada! Total: ${totalAmount.toFixed(2)}€`);
+      toast.success(`¡Venta realizada! Total: ${totalAmount.toFixed(2)}€`);
     } catch (error: any) {
       toast.error("Error al procesar la venta: " + error.message);
     } finally {
