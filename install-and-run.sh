@@ -79,17 +79,18 @@ print_status "Node.js $(node --version) está instalado"
 
 # PASO 3: Instalar Supabase CLI si no está
 print_step "PASO 3: Verificando Supabase CLI..."
-if ! command -v supabase &> /dev/null; then
-    print_warning "Supabase CLI no está instalado. Instalando..."
-    npm install -g supabase
+if ! command -v supabase &> /dev/null && ! npx supabase --version &> /dev/null; then
+    print_warning "Supabase CLI no está instalado. Instalando localmente..."
+    npm install supabase --save-dev
     if [ $? -eq 0 ]; then
-        print_status "Supabase CLI instalado"
+        print_status "Supabase CLI instalado localmente"
+        print_info "Usando 'npx supabase' en lugar de 'supabase'"
     else
         print_error "Error al instalar Supabase CLI"
         exit 1
     fi
 else
-    print_status "Supabase CLI ya está instalado"
+    print_status "Supabase CLI ya está disponible"
 fi
 
 # PASO 4: Crear archivo .env si no existe
@@ -143,8 +144,14 @@ print_status "Docker configurado"
 
 # PASO 7: Iniciar Supabase
 print_step "PASO 7: Iniciando Supabase..."
-supabase stop 2>/dev/null || true
-supabase start > /dev/null 2>&1
+if command -v supabase &> /dev/null; then
+    SUPABASE_CMD="supabase"
+else
+    SUPABASE_CMD="npx supabase"
+fi
+
+$SUPABASE_CMD stop 2>/dev/null || true
+$SUPABASE_CMD start > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     print_status "Supabase iniciado correctamente"
 else
@@ -157,7 +164,7 @@ print_step "PASO 8: Iniciando Edge Functions..."
 pkill -f "supabase functions" 2>/dev/null || true
 sleep 2
 cd supabase/functions
-supabase functions serve --no-verify-jwt --env-file .env > /dev/null 2>&1 &
+$SUPABASE_CMD functions serve --no-verify-jwt --env-file .env > /dev/null 2>&1 &
 FUNCTIONS_PID=$!
 cd ../..
 sleep 3

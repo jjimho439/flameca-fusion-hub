@@ -46,3 +46,4 @@ echo.
 
 echo 🔍 Diagnóstico completado
 pause
+
