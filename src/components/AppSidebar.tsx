@@ -20,21 +20,23 @@ import { useAppSettings } from "@/hooks/useAppSettings";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { NotificationBell } from "@/components/NotificationBell";
+import { useAppNotifications } from "@/hooks/useAppNotifications";
 
 interface MenuItem {
   title: string;
   url: string;
   icon: LucideIcon;
   permission?: Permission;
+  section?: string;
 }
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: Home, permission: "view_dashboard" },
-  { title: "Productos", url: "/products", icon: Package, permission: "view_products" },
-  { title: "Encargos", url: "/orders", icon: ClipboardList, permission: "view_orders" },
-  { title: "TPV", url: "/pos", icon: ShoppingCart, permission: "access_pos" },
+  { title: "Productos", url: "/products", icon: Package, permission: "view_products", section: "products" },
+  { title: "Encargos", url: "/orders", icon: ClipboardList, permission: "view_orders", section: "orders" },
+  { title: "TPV", url: "/pos", icon: ShoppingCart, permission: "access_pos", section: "pos" },
   { title: "Fichajes", url: "/time-entries", icon: Clock, permission: "view_time_entries" },
-  { title: "Incidencias", url: "/incidents", icon: AlertCircle, permission: "view_incidents" },
+  { title: "Incidencias", url: "/incidents", icon: AlertCircle, permission: "view_incidents", section: "incidents" },
   { title: "Empleados", url: "/employees", icon: Users, permission: "view_employees" },
   { title: "Facturación", url: "/invoices", icon: FileText, permission: "view_invoices" },
   { title: "Configuración", url: "/settings", icon: Settings, permission: "manage_settings" },
@@ -45,6 +47,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const { userRole, can, loading, user } = useUserRole();
   const { settings } = useAppSettings();
+  const { sectionCounts, markAsRead } = useAppNotifications();
   const [userName, setUserName] = useState<string>("");
   
   // En móvil siempre mostramos textos, en desktop depende del estado
@@ -148,23 +151,43 @@ export function AppSidebar() {
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
-              {visibleMenuItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild>
-                    <NavLink
-                      to={item.url}
-                      className={({ isActive }) =>
-                        isActive
-                          ? "sidebar-menu-item active"
-                          : "sidebar-menu-item"
-                      }
-                    >
-                      <item.icon className="h-5 w-5 shrink-0" />
-                      {showText && <span className="ml-2">{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {visibleMenuItems.map((item) => {
+                const notificationCount = item.section ? sectionCounts[item.section] || 0 : 0;
+                
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <NavLink
+                        to={item.url}
+                        className={({ isActive }) =>
+                          isActive
+                            ? "sidebar-menu-item active"
+                            : "sidebar-menu-item"
+                        }
+                        onClick={() => {
+                          // Marcar notificaciones de esta sección como leídas al hacer clic
+                          if (item.section && notificationCount > 0) {
+                            markAsRead(undefined, item.section);
+                          }
+                        }}
+                      >
+                        <div className="relative">
+                          <item.icon className="h-5 w-5 shrink-0" />
+                          {notificationCount > 0 && (
+                            <Badge 
+                              variant="destructive" 
+                              className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs"
+                            >
+                              {notificationCount > 9 ? '9+' : notificationCount}
+                            </Badge>
+                          )}
+                        </div>
+                        {showText && <span className="ml-2">{item.title}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
               <SidebarMenuItem>
                 <SidebarMenuButton onClick={handleLogout} className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors">
                   <LogOut className="h-5 w-5 shrink-0" />

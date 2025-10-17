@@ -14,6 +14,7 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAppSettings } from "@/hooks/useAppSettings";
+import { useNotificationEvents } from "@/hooks/useNotificationEvents";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
@@ -39,6 +40,9 @@ const queryClient = new QueryClient({
 
 const LayoutWithSidebar = ({ children }: { children: React.ReactNode }) => {
   const { settings } = useAppSettings();
+  
+  // Inicializar el sistema de eventos de notificaciones
+  useNotificationEvents();
   
   return (
     <SidebarProvider>
