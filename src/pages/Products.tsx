@@ -570,7 +570,7 @@ export default function Products() {
                   size="sm" 
                   onClick={() => openEditDialog(product)} 
                   className="flex-1"
-                  disabled={isOutOfStock}
+                  disabled={false}
                 >
                   <Edit className="mr-2 h-4 w-4" />
                   Editar
