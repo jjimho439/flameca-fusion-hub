@@ -31,7 +31,6 @@ export default function Products() {
     short_description: "",
     sku: "",
     stock_quantity: "",
-    stock_status: "instock",
     manage_stock: false,
   });
 
@@ -88,7 +87,7 @@ export default function Products() {
         description: formData.description,
         short_description: formData.short_description,
         sku: formData.sku,
-        stock_status: formData.stock_status,
+        stock_status: formData.stock_quantity && parseInt(formData.stock_quantity) > 0 ? "instock" : "outofstock",
         manage_stock: formData.stock_quantity !== "",
         stock_quantity: formData.stock_quantity ? parseInt(formData.stock_quantity) : null,
       };
@@ -183,7 +182,6 @@ export default function Products() {
       short_description: "",
       sku: "",
       stock_quantity: "",
-      stock_status: "instock",
       manage_stock: false,
     });
   };
@@ -279,22 +277,6 @@ export default function Products() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="stock_status">Estado de Stock *</Label>
-                    <Select
-                      value={formData.stock_status}
-                      onValueChange={(value) => setFormData({ ...formData, stock_status: value })}
-                    >
-                      <SelectTrigger id="stock_status">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="instock">En Stock</SelectItem>
-                        <SelectItem value="outofstock">Agotado</SelectItem>
-                        <SelectItem value="onbackorder">En espera</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
 
                 <div className="space-y-2">
