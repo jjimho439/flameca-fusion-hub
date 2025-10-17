@@ -19,7 +19,6 @@ import { getRoleLabel, getRoleColor, Permission } from "@/lib/permissions";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
-import { NotificationBell } from "@/components/NotificationBell";
 import { useAppNotifications } from "@/hooks/useAppNotifications";
 
 interface MenuItem {
@@ -144,15 +143,16 @@ export function AppSidebar() {
                 </Badge>
               </>
             )}
-            {/* Componente de notificaciones */}
-            <div className="flex justify-center">
-              <NotificationBell />
-            </div>
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {visibleMenuItems.map((item) => {
                 const notificationCount = item.section ? sectionCounts[item.section] || 0 : 0;
+                
+                // Debug: mostrar contadores en consola
+                if (item.section && notificationCount > 0) {
+                  console.log(`Notificaciones en ${item.section}:`, notificationCount);
+                }
                 
                 return (
                   <SidebarMenuItem key={item.title}>

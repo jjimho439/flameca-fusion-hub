@@ -65,10 +65,14 @@ export const useAppNotifications = () => {
     setUnreadCount(prev => prev + 1);
     
     // Actualizar contador por sección
-    setSectionCounts(prev => ({
-      ...prev,
-      [notification.section]: prev[notification.section] + 1
-    }));
+    setSectionCounts(prev => {
+      const newCounts = {
+        ...prev,
+        [notification.section]: prev[notification.section] + 1
+      };
+      console.log('Actualizando contadores de sección:', newCounts);
+      return newCounts;
+    });
     
     // Reproducir sonido
     playNotificationSound();
@@ -160,6 +164,7 @@ export const useAppNotifications = () => {
     };
 
     const template = notificationTemplates[type];
+    console.log('Simulando notificación:', { type, template });
     addNotification({
       type,
       title: template.title,

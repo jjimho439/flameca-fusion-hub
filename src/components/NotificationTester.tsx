@@ -25,7 +25,10 @@ export const NotificationTester: React.FC = () => {
             key={notification.type}
             variant="outline"
             size="sm"
-            onClick={() => simulateNotification(notification.type)}
+            onClick={() => {
+              console.log('Botón clickeado:', notification.type);
+              simulateNotification(notification.type);
+            }}
             className="w-full justify-start"
           >
             {notification.label}
