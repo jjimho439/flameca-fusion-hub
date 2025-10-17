@@ -142,11 +142,14 @@ export default function PointOfSale() {
       // 2. Insertar items de la venta
       const itemsToInsert = cartItems.map(item => ({
         order_id: order.id,
-        product_id: item.product_id,
+        product_id: item.product_id.toString(), // Convertir a string para UUID
         quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.subtotal,
+        unit_price: parseFloat(item.unit_price.toString()),
+        subtotal: parseFloat(item.subtotal.toString()),
       }));
+
+      console.log("Order created:", order);
+      console.log("Items to insert:", itemsToInsert);
 
       const { error: itemsError } = await supabase
         .from("order_items")
