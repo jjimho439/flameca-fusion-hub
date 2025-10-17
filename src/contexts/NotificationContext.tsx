@@ -98,12 +98,12 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   }, [isPlayingSound]);
 
   // Función para agregar una nueva notificación
-  const addNotification = useCallback((notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+  const addNotification = useCallback((notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'> & { id?: string }) => {
     const newNotification: AppNotification = {
       ...notification,
-      id: `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
-      read: false,
+      id: notification.id || `notification_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: notification.timestamp || new Date(),
+      read: notification.read || false,
     };
 
     console.log('Agregando notificación:', newNotification);
@@ -217,6 +217,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const interval = setInterval(clearOldNotifications, 60 * 60 * 1000);
     return () => clearInterval(interval);
   }, [clearOldNotifications]);
+
 
   const value: NotificationContextType = {
     notifications,

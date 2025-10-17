@@ -65,12 +65,24 @@ export const useNotificationEvents = () => {
       });
     };
 
+    // Función para manejar notificaciones de WooCommerce
+    const handleWooCommerceNotification = (event: CustomEvent) => {
+      const { type, title, message, section } = event.detail;
+      addNotification({
+        type,
+        title,
+        message,
+        section
+      });
+    };
+
     // Registrar listeners para eventos personalizados
     window.addEventListener('newOrder', handleNewOrder as EventListener);
     window.addEventListener('outOfStock', handleOutOfStock as EventListener);
     window.addEventListener('lowStock', handleLowStock as EventListener);
     window.addEventListener('newIncident', handleNewIncident as EventListener);
     window.addEventListener('paymentIssue', handlePaymentIssue as EventListener);
+    window.addEventListener('woocommerceNotification', handleWooCommerceNotification as EventListener);
 
     // Cleanup
     return () => {
@@ -79,6 +91,7 @@ export const useNotificationEvents = () => {
       window.removeEventListener('lowStock', handleLowStock as EventListener);
       window.removeEventListener('newIncident', handleNewIncident as EventListener);
       window.removeEventListener('paymentIssue', handlePaymentIssue as EventListener);
+      window.removeEventListener('woocommerceNotification', handleWooCommerceNotification as EventListener);
     };
   }, [addNotification]);
 };

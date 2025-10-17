@@ -86,9 +86,9 @@ serve(async (req) => {
         }
 
         // Crear cliente en Holded si no existe
-        const customerName = `${order.customer.first_name} ${order.customer.last_name}`.trim()
-        const customerEmail = order.customer.email || order.billing.email
-        const customerPhone = order.customer.phone || order.billing.phone
+        const customerName = `${order.billing.first_name} ${order.billing.last_name}`.trim()
+        const customerEmail = order.billing.email
+        const customerPhone = order.billing.phone
 
         // Buscar cliente en Holded
         const customerSearchResponse = await fetch('https://api.holded.com/api/accounting/v1/contacts', {

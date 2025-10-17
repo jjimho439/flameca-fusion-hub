@@ -32,9 +32,43 @@ serve(async (req) => {
       }
     );
 
-    const { action, orderId } = await req.json();
+    const { action, orderId, limit } = await req.json();
 
-    if (action === 'sync_new_orders') {
+    if (action === 'get_recent_orders') {
+      // Obtener pedidos recientes para polling
+      const limitCount = limit || 5;
+      const woocommerceUrl = `${storeUrl}/wp-json/wc/v3/orders?status=processing,completed&per_page=${limitCount}&orderby=date&order=desc`;
+      
+      console.log('Getting recent orders from WooCommerce:', woocommerceUrl);
+      
+      const response = await fetch(woocommerceUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Basic ${btoa(`${consumerKey}:${consumerSecret}`)}`,
+          'User-Agent': 'Flamenca-Store/1.0',
+        },
+        keepalive: false
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('WooCommerce API error:', response.status, errorText);
+        throw new Error(`WooCommerce API error: ${response.status}`);
+      }
+
+      const orders = await response.json();
+      console.log(`Found ${orders.length} recent orders`);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          orders: orders,
+          count: orders.length
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+
+    } else if (action === 'sync_new_orders') {
       // Obtener pedidos recientes de WooCommerce (últimas 24 horas)
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
@@ -90,7 +124,7 @@ serve(async (req) => {
           total_amount: parseFloat(order.total),
           status: order.status === 'completed' ? 'completed' : 'pending',
           payment_method: order.payment_method_title || 'No especificado',
-          payment_status: order.payment_method_title || 'pending',
+          payment_status: order.status === 'completed' ? 'paid' : 'unpaid',
           notes: order.customer_note || `Pedido WooCommerce #${order.id}`,
           delivery_date: order.date_created ? new Date(order.date_created).toISOString().split('T')[0] : null,
         };
@@ -225,7 +259,7 @@ serve(async (req) => {
         total_amount: parseFloat(order.total),
         status: order.status === 'completed' ? 'completed' : 'pending',
         payment_method: order.payment_method_title || 'No especificado',
-        payment_status: order.payment_method_title || 'pending',
+        payment_status: order.status === 'completed' ? 'paid' : 'unpaid',
         notes: order.customer_note || `Pedido WooCommerce #${order.id}`,
         delivery_date: order.date_created ? new Date(order.date_created).toISOString().split('T')[0] : null,
       };

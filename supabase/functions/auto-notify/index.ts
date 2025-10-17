@@ -7,9 +7,13 @@ const corsHeaders = {
 };
 
 interface AutoNotificationRequest {
-  type: 'password_reset' | 'new_order' | 'low_stock' | 'critical_stock' | 'check_in' | 'check_out' | 'incident' | 'payment_issue';
+  type: 'password_reset' | 'new_order' | 'low_stock' | 'critical_stock' | 'out_of_stock' | 'check_in' | 'check_out' | 'incident' | 'payment_issue';
   data: any;
   user_id?: string;
+  title?: string;
+  message?: string;
+  section?: string;
+  source?: string;
 }
 
 serve(async (req) => {
@@ -29,7 +33,7 @@ serve(async (req) => {
       }
     );
 
-    const { type, data, user_id }: AutoNotificationRequest = await req.json();
+    const { type, data, user_id, title, message, section, source }: AutoNotificationRequest = await req.json();
 
     console.log("Auto notification request:", { type, data, user_id });
 
@@ -70,6 +74,10 @@ serve(async (req) => {
         notificationSent = await handleCriticalStock(supabaseAdmin, data, adminSettings);
         break;
       
+      case 'out_of_stock':
+        notificationSent = await handleOutOfStock(supabaseAdmin, data, adminSettings);
+        break;
+      
       case 'check_in':
       case 'check_out':
         notificationSent = await handleCheckInOut(supabaseAdmin, data, adminSettings, type);
@@ -93,11 +101,33 @@ serve(async (req) => {
         );
     }
 
+    // Si es una notificación de WooCommerce, también enviar notificación in-app
+    if (source === 'woocommerce' && title && message && section) {
+      try {
+        // Disparar evento personalizado para notificación in-app
+        const event = new CustomEvent('woocommerceNotification', {
+          detail: {
+            type,
+            title,
+            message,
+            section,
+            data
+          }
+        });
+        
+        // En un entorno real, esto se manejaría a través de WebSockets o similar
+        console.log('WooCommerce notification event:', { type, title, message, section });
+      } catch (error) {
+        console.error('Error creating WooCommerce notification event:', error);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
         message: "Auto notification processed",
         sent: notificationSent,
+        source: source || 'internal'
       }),
       {
         status: 200,
@@ -185,9 +215,17 @@ async function handlePasswordReset(supabaseAdmin: any, data: any, adminSettings:
 
 // Handle new order notifications (WhatsApp only to admin)
 async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
-  const { order_id, customer_name, total_amount, items } = data;
+  // Manejar diferentes formatos de datos (WooCommerce vs interno)
+  const order_id = data.id || data.order_id;
+  const customer_name = data.billing ? 
+    `${data.billing.first_name || ''} ${data.billing.last_name || ''}`.trim() : 
+    data.customer_name || 'Cliente';
+  const total_amount = data.total || data.total_amount;
+  const items = data.line_items || data.items || [];
   
-  const itemsText = items.slice(0, 2).map((item: any) => item.name).join(", ");
+  const itemsText = items.length > 0 ? 
+    items.slice(0, 2).map((item: any) => item.name || item.product_name).join(", ") : 
+    'Productos varios';
   const moreItems = items.length > 2 ? ` y ${items.length - 2} más` : "";
   
   const message = `🛍️ NUEVO PEDIDO #${order_id}\nCliente: ${customer_name}\nTotal: ${total_amount}€\nProductos: ${itemsText}${moreItems}\n\nFlamenca Store`;
@@ -223,10 +261,11 @@ async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any)
 
 // Handle low stock notifications (Email + WhatsApp)
 async function handleLowStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
-  const { products } = data;
+  // Manejar diferentes formatos de datos (WooCommerce vs interno)
+  const products = data.products || (data.name ? [data] : []);
   
   const productsText = products.map((product: any) => 
-    `• ${product.name}: ${product.stock} unidades`
+    `• ${product.name}: ${product.stock_quantity || product.stock || 0} unidades`
   ).join("\n");
   
   let notificationsSent = 0;
@@ -295,11 +334,12 @@ async function handleLowStock(supabaseAdmin: any, data: any, adminSettings: any)
 }
 
 // Handle out of stock notifications (Email + SMS + WhatsApp - ALL CHANNELS)
-async function handleCriticalStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
-  const { products } = data;
+async function handleOutOfStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
+  // Manejar diferentes formatos de datos (WooCommerce vs interno)
+  const products = data.products || (data.name ? [data] : []);
   
   const productsText = products.map((product: any) => 
-    `${product.name} (${product.stock})`
+    `${product.name} (${product.stock_quantity || product.stock || 0})`
   ).join(", ");
   
   let notificationsSent = 0;

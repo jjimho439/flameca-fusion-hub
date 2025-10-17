@@ -20,7 +20,7 @@ serve(async (req) => {
       throw new Error('WooCommerce credentials not configured');
     }
 
-    const { action, productId, productData, params } = await req.json();
+    const { action, productId, productData, params, limit } = await req.json();
     console.log('Action:', action, 'ProductId:', productId);
 
     let endpoint = '';
@@ -28,6 +28,11 @@ serve(async (req) => {
     let body = null;
 
     switch (action) {
+      case 'get_products':
+        const limitCount = limit || 20;
+        endpoint = `/wp-json/wc/v3/products?per_page=${limitCount}&orderby=date&order=desc`;
+        break;
+        
       case 'list':
         const page = params?.page || 1;
         const perPage = params?.per_page || 20;
@@ -75,8 +80,11 @@ serve(async (req) => {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Basic ${auth}`,
+        'User-Agent': 'Flamenca-Store/1.0',
       },
       body,
+      // Agregar configuración para evitar errores HTTP2
+      keepalive: false,
     });
 
     if (!response.ok) {
@@ -104,11 +112,28 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in woocommerce-products function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+    
+    // Manejar errores específicos de conexión
+    let errorMessage = 'Unknown error occurred';
+    let statusCode = 500;
+    
+    if (error instanceof Error) {
+      errorMessage = error.message;
+      
+      // Si es un error de conexión, devolver un error más específico
+      if (error.message.includes('connection error') || error.message.includes('fetch')) {
+        errorMessage = 'Error de conexión con WooCommerce. Verifica la URL y las credenciales.';
+        statusCode = 503; // Service Unavailable
+      }
+    }
+    
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ 
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
+      }),
       { 
-        status: 500,
+        status: statusCode,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );

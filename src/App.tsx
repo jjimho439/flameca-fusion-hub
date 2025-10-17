@@ -15,6 +15,7 @@ import { AppSettingsProvider } from "@/hooks/useAppSettings";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useAppSettings } from "@/hooks/useAppSettings";
 import { useNotificationEvents } from "@/hooks/useNotificationEvents";
+import { useWooCommercePolling } from "@/hooks/useWooCommercePolling";
 import { NotificationProvider } from "@/contexts/NotificationContext";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
@@ -44,6 +45,9 @@ const LayoutWithSidebar = ({ children }: { children: React.ReactNode }) => {
   
   // Inicializar el sistema de eventos de notificaciones
   useNotificationEvents();
+  
+  // Inicializar el sistema de polling de WooCommerce
+  useWooCommercePolling();
   
   return (
     <SidebarProvider>

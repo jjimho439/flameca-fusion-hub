@@ -236,7 +236,7 @@ export default function Orders() {
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-          Encargos
+          Pedidos
         </h1>
         <p className="text-muted-foreground text-lg">Gestiona los encargos de tus clientes de forma eficiente</p>
       </div>
@@ -246,7 +246,7 @@ export default function Orders() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Package className="h-6 w-6 text-primary" />
-            Sincronización de Encargos
+            Sincronización de Pedidos
           </CardTitle>
           <CardDescription>Sincroniza los pedidos desde WooCommerce automáticamente</CardDescription>
         </CardHeader>
@@ -269,13 +269,13 @@ export default function Orders() {
         </CardContent>
       </Card>
 
-      {/* Lista de Encargos */}
+      {/* Lista de Pedidos */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold">Lista de Encargos</h2>
+            <h2 className="text-2xl font-bold">Lista de Pedidos</h2>
             <p className="text-sm text-muted-foreground">
-              {displayOrders.length} {displayOrders.length === 1 ? 'encargo' : 'encargos'} registrados
+              {displayOrders.length} {displayOrders.length === 1 ? 'pedido' : 'pedidos'} registrados
             </p>
           </div>
         </div>

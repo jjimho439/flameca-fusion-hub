@@ -32,7 +32,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: Home, permission: "view_dashboard" },
   { title: "Productos", url: "/products", icon: Package, permission: "view_products", section: "products" },
-  { title: "Encargos", url: "/orders", icon: ClipboardList, permission: "view_orders", section: "orders" },
+  { title: "Pedidos", url: "/orders", icon: ClipboardList, permission: "view_orders", section: "orders" },
   { title: "TPV", url: "/pos", icon: ShoppingCart, permission: "access_pos", section: "pos" },
   { title: "Fichajes", url: "/time-entries", icon: Clock, permission: "view_time_entries" },
   { title: "Incidencias", url: "/incidents", icon: AlertCircle, permission: "view_incidents", section: "incidents" },
@@ -174,7 +174,7 @@ export function AppSidebar() {
                           {notificationCount > 0 && (
                             <Badge 
                               variant="destructive" 
-                              className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-xs"
+                              className="absolute -top-2 -right-2 h-6 w-6 flex items-center justify-center p-0 text-xs bg-red-500 border-2 border-white"
                             >
                               {notificationCount > 9 ? '9+' : notificationCount}
                             </Badge>
