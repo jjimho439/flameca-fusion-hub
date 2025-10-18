@@ -84,11 +84,27 @@ export function useWooCommerceOrders() {
       setLoading(true);
       const { data, error } = await supabase
         .from('orders')
-        .select('*')
+        .select(`
+          *,
+          order_items (
+            id,
+            name,
+            quantity,
+            unit_price,
+            subtotal
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+      
+      // Mapear los datos para incluir items en el formato esperado
+      const ordersWithItems = (data || []).map(order => ({
+        ...order,
+        items: order.order_items || []
+      }));
+      
+      setOrders(ordersWithItems);
     } catch (error) {
       console.error('Error fetching orders:', error);
       toast.error('Error al cargar pedidos');

@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Package, RefreshCw, Phone, DollarSign, Calendar, CreditCard, Clock, User, MapPin } from "lucide-react";
+import { Package, RefreshCw, Phone, DollarSign, CreditCard, Clock, User, MapPin, FileText, CheckCircle } from "lucide-react";
 import { useWooCommerceOrders } from "@/hooks/useWooCommerceOrders";
+import { useHoldedDocuments } from "@/hooks/useHoldedDocuments";
+import { PermissionGate } from "@/components/PermissionGate";
 
 interface Order {
   id: string;
@@ -13,7 +15,6 @@ interface Order {
   customer_phone: string;
   customer_email: string;
   total_amount: number;
-  delivery_date: string;
   status: string;
   payment_method: string;
   payment_status: string;
@@ -22,6 +23,7 @@ interface Order {
   created_at: string;
   order_items: {
     id: string;
+    name: string;
     quantity: number;
     unit_price: number;
     subtotal: number;
@@ -32,8 +34,10 @@ export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [invoicing, setInvoicing] = useState<string | null>(null);
   
   const { syncNewOrders } = useWooCommerceOrders();
+  const { createInvoiceFromOrder } = useHoldedDocuments();
   
 
   useEffect(() => {
@@ -48,6 +52,7 @@ export default function Orders() {
           *,
           order_items (
             id,
+            name,
             quantity,
             unit_price,
             subtotal
@@ -93,19 +98,48 @@ export default function Orders() {
     }
   };
 
-  const handlePaymentStatusChange = async (orderId: string, newPaymentStatus: string) => {
-    try {
-      const { error } = await supabase
-        .from("orders")
-        .update({ payment_status: newPaymentStatus })
-        .eq("id", orderId);
 
-      if (error) throw error;
+  const handleCreateInvoice = async (order: Order) => {
+    setInvoicing(order.id);
+    try {
+      console.log("Order data being sent to createInvoiceFromOrder:", order);
+      console.log("Order items:", order.order_items);
       
-      toast.success("Estado de pago actualizado correctamente");
-      fetchOrders();
+      // Mapear el pedido al formato esperado por createInvoiceFromOrder
+      const orderForHolded = {
+        id: order.id,
+        customer_name: order.customer_name,
+        customer_email: order.customer_email,
+        customer_phone: order.customer_phone,
+        items: order.order_items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          sku: undefined // No tenemos SKU en order_items
+        })),
+        total_amount: order.total_amount,
+        notes: order.notes
+      };
+      
+      console.log("Mapped order for Holded:", orderForHolded);
+      await createInvoiceFromOrder(orderForHolded);
+      
+      // Actualizar el estado del pedido a "completed" después de facturar
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update({ status: "completed" })
+        .eq("id", order.id);
+
+      if (updateError) {
+        console.error("Error actualizando estado del pedido:", updateError);
+      }
+      
+      toast.success("¡Factura creada en Holded y pedido completado!");
+      fetchOrders(); // Recargar para actualizar el estado
     } catch (error: any) {
-      toast.error("Error al actualizar estado de pago");
+      toast.error("Error al crear factura: " + (error.message || "Error desconocido"));
+    } finally {
+      setInvoicing(null);
     }
   };
 
@@ -124,12 +158,31 @@ export default function Orders() {
     return new Date(dateString).toLocaleString('es-ES');
   };
 
+  const translatePaymentMethod = (method: string) => {
+    const translations: { [key: string]: string } = {
+      'cash': 'Efectivo',
+      'card': 'Tarjeta',
+      'mixed': 'Mixto',
+      'web': 'Web',
+      'transfer': 'Transferencia',
+      'paypal': 'PayPal',
+      'stripe': 'Stripe',
+      'bacs': 'Transferencia bancaria',
+      'cheque': 'Cheque',
+      'cod': 'Contra reembolso',
+      'Tarjeta': 'Tarjeta',
+      'Efectivo': 'Efectivo',
+      'Mixto': 'Mixto',
+      'Web': 'Web',
+      'Transferencia': 'Transferencia'
+    };
+    return translations[method.toLowerCase()] || method;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending': return 'bg-yellow-500';
-      case 'processing': return 'bg-blue-500';
       case 'completed': return 'bg-green-500';
-      case 'cancelled': return 'bg-red-500';
       default: return 'bg-gray-500';
     }
   };
@@ -137,30 +190,11 @@ export default function Orders() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'pending': return 'Pendiente';
-      case 'processing': return 'Procesando';
       case 'completed': return 'Completado';
-      case 'cancelled': return 'Cancelado';
       default: return status;
     }
   };
 
-  const getPaymentStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-500';
-      case 'paid': return 'bg-green-500';
-      case 'failed': return 'bg-red-500';
-      default: return 'bg-gray-500';
-    }
-  };
-
-  const getPaymentStatusLabel = (status: string) => {
-    switch (status) {
-      case 'pending': return 'Pendiente';
-      case 'paid': return 'Pagado';
-      case 'failed': return 'Fallido';
-      default: return status;
-    }
-  };
 
   // Datos de prueba para mostrar la página funcionando
   const sampleOrders: Order[] = [
@@ -174,7 +208,6 @@ export default function Orders() {
       payment_method: "Tarjeta",
       payment_status: "paid",
       notes: "Cliente VIP - Entrega urgente",
-      delivery_date: "2025-10-16",
       woocommerce_order_id: "101",
       created_at: "2025-10-15T10:30:00Z",
       order_items: [
@@ -191,7 +224,6 @@ export default function Orders() {
       payment_method: "Efectivo",
       payment_status: "pending",
       notes: "Pedido especial - Talla personalizada",
-      delivery_date: "2025-10-18",
       woocommerce_order_id: "102",
       created_at: "2025-10-15T11:15:00Z",
       order_items: [
@@ -208,7 +240,6 @@ export default function Orders() {
       payment_method: "Transferencia",
       payment_status: "paid",
       notes: "Entrega completada - Cliente satisfecho",
-      delivery_date: "2025-10-15",
       woocommerce_order_id: "103",
       created_at: "2025-10-15T09:45:00Z",
       order_items: [
@@ -252,15 +283,17 @@ export default function Orders() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button 
-              onClick={handleSyncOrders} 
-              disabled={syncing}
-              className="bg-gradient-hero flex-1" 
-              size="lg"
-            >
-              <RefreshCw className={`mr-2 h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
-              {syncing ? 'Sincronizando...' : 'Sincronizar WooCommerce'}
-            </Button>
+            <PermissionGate permission="sync_woocommerce">
+              <Button 
+                onClick={handleSyncOrders} 
+                disabled={syncing}
+                className="bg-gradient-hero flex-1" 
+                size="lg"
+              >
+                <RefreshCw className={`mr-2 h-5 w-5 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'Sincronizando...' : 'Sincronizar WooCommerce'}
+              </Button>
+            </PermissionGate>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span>Sistema conectado</span>
@@ -320,13 +353,6 @@ export default function Orders() {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-2xl font-bold text-primary">{formatCurrency(order.total_amount)}</span>
-                          <div className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            order.payment_status === 'paid' ? 'bg-green-100 text-green-800' :
-                            order.payment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
-                            {getPaymentStatusLabel(order.payment_status)}
-                          </div>
                         </div>
                       </div>
                       
@@ -341,18 +367,10 @@ export default function Orders() {
                         </div>
                         
                         <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
-                          <Calendar className="h-5 w-5 text-primary" />
-                          <div>
-                            <p className="text-xs text-muted-foreground">Entrega</p>
-                            <p className="font-medium">{formatDate(order.delivery_date)}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg">
                           <CreditCard className="h-5 w-5 text-primary" />
                           <div>
                             <p className="text-xs text-muted-foreground">Pago</p>
-                            <p className="font-medium">{order.payment_method}</p>
+                            <p className="font-medium">{translatePaymentMethod(order.payment_method)}</p>
                           </div>
                         </div>
                         
@@ -415,38 +433,37 @@ export default function Orders() {
                       {/* Estado del Pedido */}
                       <div className="space-y-3">
                         <p className="text-sm font-medium text-muted-foreground">Estado del Pedido</p>
-                        <Select 
-                          value={order.status} 
-                          onValueChange={(value) => handleStatusChange(order.id, value)}
-                        >
-                          <SelectTrigger className="w-full h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">🟡 Pendiente</SelectItem>
-                            <SelectItem value="processing">🔵 Procesando</SelectItem>
-                            <SelectItem value="completed">🟢 Completado</SelectItem>
-                            <SelectItem value="cancelled">🔴 Cancelado</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+                          <div className={`w-3 h-3 rounded-full ${getStatusColor(order.status)}`}></div>
+                          <span className="font-medium">{getStatusLabel(order.status)}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {order.status === 'completed' ? 'Pedido completado y facturado' : 'El estado se actualiza automáticamente'}
+                        </p>
                       </div>
 
-                      {/* Estado del Pago */}
+
+                      {/* Botón de Facturación */}
                       <div className="space-y-3">
-                        <p className="text-sm font-medium text-muted-foreground">Estado del Pago</p>
-                        <Select 
-                          value={order.payment_status} 
-                          onValueChange={(value) => handlePaymentStatusChange(order.id, value)}
-                        >
-                          <SelectTrigger className="w-full h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">🟡 Pendiente</SelectItem>
-                            <SelectItem value="paid">🟢 Pagado</SelectItem>
-                            <SelectItem value="failed">🔴 Fallido</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <p className="text-sm font-medium text-muted-foreground">Facturación</p>
+                        {order.status === 'completed' ? (
+                          <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <CheckCircle className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">Ya facturado</span>
+                          </div>
+                        ) : (
+                          <PermissionGate permission="create_invoice">
+                            <Button
+                              onClick={() => handleCreateInvoice(order)}
+                              disabled={invoicing === order.id}
+                              className="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white"
+                              size="lg"
+                            >
+                              <FileText className="mr-2 h-4 w-4" />
+                              {invoicing === order.id ? 'Facturando...' : 'Facturar en Holded'}
+                            </Button>
+                          </PermissionGate>
+                        )}
                       </div>
                     </div>
                   </div>

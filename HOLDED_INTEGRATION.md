@@ -35,19 +35,30 @@ Ve a **Configuración** → **Sistema** → **Holded** y configura:
 - **Clientes automáticos**: Se crean en Holded si no existen
 - **Productos sincronizados**: Items de pedidos convertidos a líneas de factura
 
-### 🧾 Gestión de Facturas
+### 🧾 Gestión Completa de Documentos
 
-- **Crear facturas** desde pedidos individuales
-- **Estados de factura**: Borrador, Enviada, Pagada, Cancelada
-- **Historial completo** de todas las facturas
-- **Enlaces directos** a Holded para gestión avanzada
+- **Crear documentos**: Facturas, presupuestos, albaranes, notas de crédito
+- **Estados de documento**: Borrador, Enviado, Pagado, Cancelado
+- **Envío por email**: Envío directo desde la aplicación
+- **Descarga de PDF**: Generación y descarga de documentos
+- **Marcar como pagado**: Actualización de estados de pago
+- **Gestión de contactos**: Crear, actualizar y eliminar clientes
 
 ### 📊 Dashboard de Facturación
 
 - **Estadísticas en tiempo real**: Borradores, Enviadas, Pagadas
 - **Total facturado** acumulado
-- **Filtros avanzados** por estado y cliente
-- **Búsqueda** por nombre, email o ID de factura
+- **Filtros avanzados** por estado, tipo y cliente
+- **Búsqueda** por nombre, email o ID de documento
+- **Vista detallada** de documentos con información completa
+
+### 🔧 API Completa de Holded
+
+- **Documentos**: Listar, crear, actualizar, eliminar
+- **Contactos**: Gestión completa de clientes y proveedores
+- **Envío**: Envío de documentos por email
+- **Pagos**: Marcado de documentos como pagados
+- **PDF**: Generación y descarga de documentos
 
 ## 🔄 Flujo de Trabajo
 
@@ -172,13 +183,35 @@ CREATE TABLE invoices (
 - Mantener sincronización regular
 - Backup de datos importantes
 
+## 🆕 Nuevas Funcionalidades Implementadas
+
+### ✅ API Completa de Documentos
+- **Edge Function**: `holded-documents` con todas las operaciones CRUD
+- **Hook personalizado**: `useHoldedDocuments` para React
+- **Tipos TypeScript**: Interfaces completas según documentación de Holded
+
+### ✅ Interfaz Mejorada
+- **Pestaña Holded**: Vista dedicada a documentos de Holded
+- **Filtros avanzados**: Por tipo, estado y cliente
+- **Acciones directas**: Ver, editar, enviar, pagar, eliminar
+- **Diálogos modales**: Vista detallada y envío por email
+
+### ✅ Funcionalidades de Documentos
+- **Crear**: Facturas, presupuestos, albaranes, notas de crédito
+- **Enviar**: Por email con asunto y mensaje personalizado
+- **Pagar**: Marcar documentos como pagados
+- **PDF**: Descarga directa de documentos
+- **Contactos**: Gestión completa de clientes
+
 ## 🔮 Próximas Mejoras
 
-- [ ] Envío automático de facturas por email
+- [x] ~~Envío automático de facturas por email~~ ✅ Implementado
 - [ ] Plantillas personalizadas de factura
 - [ ] Reportes de facturación avanzados
 - [ ] Integración con métodos de pago
 - [ ] Notificaciones de vencimiento
+- [ ] Sincronización bidireccional con Holded
+- [ ] Plantillas de email personalizables
 
 ## 📞 Soporte
 

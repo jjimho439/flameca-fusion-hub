@@ -7,9 +7,14 @@ const corsHeaders = {
 };
 
 interface EmailRequest {
-  email: string;
+  to: string;
   subject: string;
   body: string;
+  attachments?: Array<{
+    filename: string;
+    content: string; // base64
+    type: string;
+  }>;
   user_id?: string;
   template_id?: string;
   variables?: Record<string, string>;
@@ -32,13 +37,13 @@ serve(async (req) => {
       }
     );
 
-    const { email, subject, body, user_id, template_id, variables }: EmailRequest = await req.json();
+    const { to, subject, body, attachments, user_id, template_id, variables }: EmailRequest = await req.json();
 
-    console.log("Email request:", { email, subject, body: body.substring(0, 50) + "...", user_id, template_id });
+    console.log("Email request:", { to, subject, body: body.substring(0, 50) + "...", user_id, template_id });
 
-    if (!email || !subject || !body) {
+    if (!to || !subject || !body) {
       return new Response(
-        JSON.stringify({ error: "Email, subject and body are required" }),
+        JSON.stringify({ error: "To, subject and body are required" }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -48,7 +53,7 @@ serve(async (req) => {
 
     // Validar formato de email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!emailRegex.test(to)) {
       return new Response(
         JSON.stringify({ error: "Invalid email format" }),
         {
@@ -91,7 +96,7 @@ serve(async (req) => {
     const { data: notification, error: insertError } = await supabaseAdmin
       .from("email_notifications")
       .insert({
-        email,
+        email: to,
         subject: finalSubject,
         body: finalBody,
         status: "pending",
@@ -118,12 +123,21 @@ serve(async (req) => {
         // En producción, usar la API real de Resend
         const resendUrl = "https://api.resend.com/emails";
         
-        const emailData = {
+        const emailData: any = {
           from: fromEmail,
-          to: [email],
+          to: [to],
           subject: finalSubject,
           html: finalBody.replace(/\n/g, '<br>'),
         };
+
+        // Agregar adjuntos si los hay
+        if (attachments && attachments.length > 0) {
+          emailData.attachments = attachments.map(att => ({
+            filename: att.filename,
+            content: att.content,
+            type: att.type
+          }));
+        }
 
         const resendResponse = await fetch(resendUrl, {
           method: "POST",
@@ -152,9 +166,12 @@ serve(async (req) => {
       }
     } else {
       // Modo desarrollo - simular envío exitoso
-      console.log("Development mode: Email would be sent to", email);
+      console.log("Development mode: Email would be sent to", to);
       console.log("Subject:", finalSubject);
       console.log("Body:", finalBody);
+      if (attachments && attachments.length > 0) {
+        console.log("Attachments:", attachments.map(att => att.filename));
+      }
       providerId = `dev_email_${Date.now()}`;
       status = "sent";
     }

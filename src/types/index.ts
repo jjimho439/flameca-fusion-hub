@@ -80,13 +80,14 @@ export interface Product {
 }
 
 export interface Order {
-  id: number;
+  id: string;
   customer_name: string;
   customer_phone: string;
   customer_email: string;
   total_amount: number;
   status: OrderStatus;
   payment_method: string;
+  payment_status: string;
   notes: string;
   delivery_date: string;
   created_at: string;
@@ -96,17 +97,18 @@ export interface Order {
 
 export interface OrderItem {
   id: number;
-  order_id: number;
-  product_id: number;
+  order_id: string;
+  product_id: number | null;
   quantity: number;
   unit_price: number;
   subtotal: number;
+  name?: string;
   products?: {
     name: string;
   };
 }
 
-export type OrderStatus = 'pending' | 'in_progress' | 'ready' | 'delivered' | 'cancelled';
+export type OrderStatus = 'pending' | 'in_progress' | 'ready' | 'delivered' | 'cancelled' | 'completed';
 
 export interface CartItem {
   product_id: number;

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Plus, Edit, Trash2, Package, RefreshCw, Search, Loader2 } from "lucide-react";
 import { Product } from "@/types";
 import { useWooCommerceProducts } from "@/hooks/useWooCommerceProducts";
+import { PermissionGate } from "@/components/PermissionGate";
 
 export default function Products() {
   const { products, loading, refetch, fetchProducts, syncProducts } = useWooCommerceProducts();
@@ -202,13 +203,14 @@ export default function Products() {
             <RefreshCw className="mr-2 h-4 w-4" />
             Actualizar
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-hero">
-                <Plus className="mr-2 h-4 w-4" />
-                Nuevo Producto
-              </Button>
-            </DialogTrigger>
+          <PermissionGate permission="create_product">
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-hero">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nuevo Producto
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingProduct ? "Editar" : "Nuevo"} Producto</DialogTitle>
@@ -311,6 +313,7 @@ export default function Products() {
               </form>
             </DialogContent>
           </Dialog>
+          </PermissionGate>
         </div>
       </div>
 
@@ -500,16 +503,30 @@ export default function Products() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Precio:</span>
-                    <span className="font-semibold text-primary">
+                    <div className="text-right">
                       {product.sale_price ? (
                         <>
-                          <span className="text-destructive">${product.sale_price}</span>
-                          <span className="text-muted-foreground line-through ml-2">${product.regular_price}</span>
+                          <div className="font-semibold text-primary text-destructive">
+                            ${(parseFloat(product.sale_price) * 1.21).toFixed(2)} (con IVA)
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            ${product.sale_price} (sin IVA)
+                          </div>
+                          <div className="text-xs text-muted-foreground line-through">
+                            ${(parseFloat(product.regular_price) * 1.21).toFixed(2)} (con IVA)
+                          </div>
                         </>
                       ) : (
-                        `$${product.price}`
+                        <>
+                          <div className="font-semibold text-primary">
+                            ${(parseFloat(product.price) * 1.21).toFixed(2)} (con IVA)
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            ${product.price} (sin IVA)
+                          </div>
+                        </>
                       )}
-                    </span>
+                    </div>
                   </div>
                   
                   {/* Stock con indicador visual */}
@@ -547,24 +564,28 @@ export default function Products() {
                 </div>
               </CardContent>
               <CardFooter className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => openEditDialog(product)} 
-                  className="flex-1"
-                  disabled={false}
-                >
-                  <Edit className="mr-2 h-4 w-4" />
-                  Editar
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setDeleteProduct(product)} 
-                  className="text-destructive hover:bg-destructive/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <PermissionGate permission="edit_product">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => openEditDialog(product)} 
+                    className="flex-1"
+                    disabled={false}
+                  >
+                    <Edit className="mr-2 h-4 w-4" />
+                    Editar
+                  </Button>
+                </PermissionGate>
+                <PermissionGate permission="delete_product">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setDeleteProduct(product)} 
+                    className="text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </PermissionGate>
               </CardFooter>
             </Card>
             );

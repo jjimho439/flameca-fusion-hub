@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,16 +24,121 @@ export default function Dashboard() {
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const lastUpdateRef = useRef<number>(0);
+  const isManualRefreshRef = useRef<boolean>(false);
 
   useEffect(() => {
     fetchDashboardData();
+    
+    // Escuchar cambios en tiempo real en la tabla orders
+    const ordersSubscription = supabase
+      .channel('orders_changes')
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'orders' 
+        }, 
+        (payload) => {
+          console.log('Order change detected:', payload);
+          // Actualizar datos cuando hay cambios en órdenes
+          fetchDashboardData(true, false);
+        }
+      )
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'order_items' 
+        }, 
+        (payload) => {
+          console.log('Order items change detected:', payload);
+          // Actualizar datos cuando hay cambios en items de órdenes
+          fetchDashboardData(true, false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      ordersSubscription.unsubscribe();
+    };
+  }, []);
+
+  // Actualizar cuando la página vuelve a tener foco (usuario regresa a la pestaña)
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchDashboardData(true, false);
+    };
+
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        fetchDashboardData(true, false);
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  // Actualizar cuando se detectan cambios en los datos (usando polling inteligente)
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    const startPolling = () => {
+      // Solo hacer polling si la página está visible y tiene foco
+      if (!document.hidden && document.hasFocus()) {
+        intervalId = setInterval(() => {
+          fetchDashboardData(true, false);
+        }, 60000); // Cada minuto
+      }
+    };
+
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+
+    // Iniciar polling cuando la página está visible
+    if (!document.hidden && document.hasFocus()) {
+      startPolling();
+    }
+
+    // Manejar cambios de visibilidad
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        startPolling();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      stopPolling();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
 
-  const fetchDashboardData = async (isRefresh = false) => {
+  const fetchDashboardData = async (isRefresh = false, isManual = false) => {
     try {
+      // Evitar actualizaciones muy frecuentes (mínimo 5 segundos entre actualizaciones)
+      const now = Date.now();
+      if (isRefresh && now - lastUpdateRef.current < 5000) {
+        return;
+      }
+      
       if (isRefresh) {
         setRefreshing(true);
+        lastUpdateRef.current = now;
+        isManualRefreshRef.current = isManual;
       } else {
         setLoading(true);
       }
@@ -51,32 +156,49 @@ export default function Dashboard() {
       ]);
 
       const ordersData = allOrders.data || [];
+      console.log("Orders data:", ordersData);
+      console.log("Orders count:", ordersData.length);
+      
       const pendingOrders = ordersData.filter(o => 
-        o.status === 'pending' || o.status === 'in_progress'
+        o.status === 'pending'
       );
+      console.log("Pending orders:", pendingOrders.length);
+      
+      // Log para verificar pedidos con pago aceptado
+      const paidOrders = ordersData.filter(o => o.payment_status === 'paid');
+      console.log("Paid orders:", paidOrders.length);
+      console.log("Paid orders today:", ordersData.filter(o => {
+        const orderDate = new Date(o.created_at);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return orderDate >= today && o.payment_status === 'paid';
+      }).length);
 
-      // Calcular ventas de hoy
+      // Calcular ventas de hoy (solo pedidos con pago aceptado)
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todaySales = ordersData
         .filter(o => {
           const orderDate = new Date(o.created_at);
-          return orderDate >= today && o.status === 'delivered';
+          return orderDate >= today && o.payment_status === 'paid';
         })
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
-      // Calcular ventas de la semana
+      // Calcular ventas de la semana (solo pedidos con pago aceptado)
       const weekAgo = new Date();
       weekAgo.setDate(weekAgo.getDate() - 7);
       const weekSales = ordersData
         .filter(o => {
           const orderDate = new Date(o.created_at);
-          return orderDate >= weekAgo && o.status === 'delivered';
+          return orderDate >= weekAgo && o.payment_status === 'paid';
         })
         .reduce((sum, o) => sum + Number(o.total_amount), 0);
 
       // Transformar productos de WooCommerce
       const products = productsResponse.data?.data || [];
+      console.log("Products response:", productsResponse.data);
+      console.log("Products array:", products);
+      
       const transformedProducts = products.map((product: any) => ({
         id: product.id,
         name: product.name,
@@ -103,10 +225,11 @@ export default function Dashboard() {
       // Encargos recientes
       const recent = ordersData
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .slice(0, 5);
+        .slice(0, 5) as Order[];
       setRecentOrders(recent);
 
-      if (isRefresh) {
+      // Solo mostrar toast si es una actualización manual (botón)
+      if (isRefresh && isManualRefreshRef.current) {
         toast.success("Dashboard actualizado");
       }
 
@@ -121,18 +244,12 @@ export default function Dashboard() {
 
   const statusColors = {
     pending: "bg-yellow-500",
-    in_progress: "bg-blue-500",
-    ready: "bg-green-500",
-    delivered: "bg-gray-500",
-    cancelled: "bg-red-500",
+    completed: "bg-green-500",
   };
 
   const statusLabels = {
     pending: "Pendiente",
-    in_progress: "En Proceso",
-    ready: "Listo",
-    delivered: "Entregado",
-    cancelled: "Cancelado",
+    completed: "Completado",
   };
 
   if (loading) {
@@ -192,19 +309,27 @@ export default function Dashboard() {
           <h1 className="text-4xl font-bold text-foreground mb-2">Dashboard</h1>
           <p className="text-muted-foreground">Resumen general de tu tienda de flamenca</p>
         </div>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={() => fetchDashboardData(true)}
-          disabled={refreshing}
-        >
-          {refreshing ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4" />
+        <div className="flex items-center gap-2">
+          {refreshing && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Actualizando...</span>
+            </div>
           )}
-          <span className="ml-2">Actualizar</span>
-        </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => fetchDashboardData(true, true)}
+            disabled={refreshing}
+          >
+            {refreshing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="ml-2">Actualizar</span>
+          </Button>
+        </div>
       </div>
 
       {/* KPIs Principales */}
@@ -289,7 +414,7 @@ export default function Dashboard() {
                   <div key={product.id} className="flex items-center justify-between p-3 border rounded-lg">
                     <div>
                       <p className="font-medium">{product.name}</p>
-                      <p className="text-sm text-muted-foreground">{product.price.toFixed(2)}€</p>
+                      <p className="text-sm text-muted-foreground">{Number(product.price).toFixed(2)}€</p>
                     </div>
                     <Badge 
                       variant="destructive" 

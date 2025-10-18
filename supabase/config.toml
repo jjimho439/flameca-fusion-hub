@@ -1,5 +1,8 @@
 project_id = "nfkmvzwyllixmiugtaim"
 
+[realtime]
+enabled = true
+
 [functions.sync-woocommerce-products]
 verify_jwt = false
 

@@ -6,6 +6,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Función para mapear estados de WooCommerce a nuestros estados locales simplificados
+function mapWooCommerceStatus(wooStatus: string): string {
+  switch (wooStatus) {
+    case 'pending':
+      return 'pending';
+    case 'processing':
+      return 'pending';
+    case 'completed':
+      return 'pending'; // Los pedidos de WooCommerce llegan como pending, se completan al facturar
+    case 'cancelled':
+      return 'pending'; // Tratamos cancelados como pending
+    case 'refunded':
+      return 'pending'; // Tratamos reembolsados como pending
+    default:
+      return 'pending';
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -122,8 +140,8 @@ serve(async (req) => {
           customer_phone: order.billing.phone || 'No proporcionado',
           customer_email: order.billing.email,
           total_amount: parseFloat(order.total),
-          status: order.status === 'completed' ? 'completed' : 'pending',
-          payment_method: order.payment_method_title || 'No especificado',
+          status: mapWooCommerceStatus(order.status),
+          payment_method: 'Web',
           payment_status: order.status === 'completed' ? 'paid' : 'unpaid',
           notes: order.customer_note || `Pedido WooCommerce #${order.id}`,
           delivery_date: order.date_created ? new Date(order.date_created).toISOString().split('T')[0] : null,
@@ -149,6 +167,7 @@ serve(async (req) => {
           const itemData = {
             order_id: newOrder.id,
             product_id: null, // No tenemos productos locales, solo referencias a WooCommerce
+            name: item.name, // ¡Agregar el nombre del producto!
             quantity: item.quantity,
             unit_price: parseFloat(item.price),
             subtotal: parseFloat(item.total),
@@ -257,8 +276,8 @@ serve(async (req) => {
         customer_phone: order.billing.phone || 'No proporcionado',
         customer_email: order.billing.email,
         total_amount: parseFloat(order.total),
-        status: order.status === 'completed' ? 'completed' : 'pending',
-        payment_method: order.payment_method_title || 'No especificado',
+        status: mapWooCommerceStatus(order.status),
+        payment_method: 'Web',
         payment_status: order.status === 'completed' ? 'paid' : 'unpaid',
         notes: order.customer_note || `Pedido WooCommerce #${order.id}`,
         delivery_date: order.date_created ? new Date(order.date_created).toISOString().split('T')[0] : null,
@@ -279,6 +298,7 @@ serve(async (req) => {
         const itemData = {
           order_id: newOrder.id,
           product_id: null,
+          name: item.name, // ¡Agregar el nombre del producto!
           quantity: item.quantity,
           unit_price: parseFloat(item.price),
           subtotal: parseFloat(item.total),

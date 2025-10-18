@@ -21,6 +21,18 @@ interface AppSettings {
   storePhone: string;
   storeEmail: string;
   storeWebsite: string;
+  // Datos fiscales
+  cif: string;
+  companyName: string;
+  fiscalAddress: string;
+  postalCode: string;
+  city: string;
+  province: string;
+  country: string;
+  bankName: string;
+  bankAccount: string;
+  ivaRate: number;
+  invoiceSeries: string;
 }
 
 interface AppSettingsContextType {
@@ -99,7 +111,19 @@ const defaultSettings: AppSettings = {
   storeAddress: "",
   storePhone: "",
   storeEmail: "",
-  storeWebsite: ""
+  storeWebsite: "",
+  // Datos fiscales por defecto
+  cif: "",
+  companyName: "",
+  fiscalAddress: "",
+  postalCode: "",
+  city: "",
+  province: "",
+  country: "España",
+  bankName: "",
+  bankAccount: "",
+  ivaRate: 21,
+  invoiceSeries: "A"
 };
 
 const AppSettingsContext = createContext<AppSettingsContextType | undefined>(undefined);

@@ -23,25 +23,34 @@ export default function PointOfSale() {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<string>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<string>("Efectivo");
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [discountType, setDiscountType] = useState<"percentage" | "fixed">("percentage");
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
+    // Filtrar productos con stock > 0
+    const productsWithStock = products.filter(p => p.stock > 0);
+    
     if (searchTerm) {
-      const filtered = products.filter(p => 
+      const filtered = productsWithStock.filter(p => 
         p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         p.category?.toLowerCase().includes(searchTerm.toLowerCase())
       );
       setFilteredProducts(filtered);
     } else {
-      setFilteredProducts(products);
+      setFilteredProducts(productsWithStock);
     }
   }, [searchTerm, products]);
 
 
   const addToCart = (product: Product) => {
+    // Verificar que el producto tenga stock
+    if (product.stock <= 0) {
+      toast.error(`${product.name} no tiene stock disponible`);
+      return;
+    }
+
     const existingItem = cartItems.find(item => item.product_id === product.id);
     
     if (existingItem) {
@@ -55,8 +64,8 @@ export default function PointOfSale() {
         product_id: product.id,
         product_name: product.name,
         quantity: 1,
-        unit_price: product.price,
-        subtotal: product.price,
+        unit_price: product.price * 1.21, // Precio con IVA para el TPV
+        subtotal: product.price * 1.21,
       };
       setCartItems([...cartItems, newItem]);
       toast.success(`${product.name} agregado al carrito`);
@@ -67,8 +76,15 @@ export default function PointOfSale() {
     const product = products.find(p => p.id === productId);
     if (!product) return;
 
+    // Verificar que el producto tenga stock
+    if (product.stock <= 0) {
+      toast.error(`${product.name} no tiene stock disponible`);
+      removeFromCart(productId);
+      return;
+    }
+
     if (newQuantity > product.stock) {
-      toast.error(`Stock máximo: ${product.stock} unidades`);
+      toast.error(`Stock máximo: ${product.stock} unidades disponibles`);
       return;
     }
 
@@ -120,18 +136,19 @@ export default function PointOfSale() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const totalAmount = calculateTotal();
+      const totalAmount = calculateTotal() / 1.21; // Total sin IVA para la BD
 
       // 1. Crear orden de venta
       const { data: order, error: orderError } = await supabase
         .from("orders")
         .insert([{
           customer_name: "Venta en Tienda",
+          customer_email: "venta@tienda.local", // Email por defecto para ventas en tienda
           customer_phone: "N/A",
           total_amount: totalAmount,
           payment_method: paymentMethod,
           payment_status: "paid", // Venta directa = pagado
-          status: "delivered", // Venta directa = entregado
+          status: "pending", // Venta directa = pendiente (se completará al facturar)
           created_by: session?.user.id || null,
         }])
         .select()
@@ -139,13 +156,14 @@ export default function PointOfSale() {
 
       if (orderError) throw orderError;
 
-      // 2. Insertar items de la venta
+      // 2. Insertar items de la venta (guardamos precios sin IVA)
       const itemsToInsert = cartItems.map(item => ({
         order_id: order.id,
-        product_id: null, // Temporalmente null para ventas directas
+        product_id: null, // Para ventas directas, no tenemos producto en la BD local
+        name: item.product_name, // Incluir el nombre del producto
         quantity: item.quantity,
-        unit_price: parseFloat(item.unit_price.toString()),
-        subtotal: parseFloat(item.subtotal.toString()),
+        unit_price: parseFloat((item.unit_price / 1.21).toFixed(2)), // Precio sin IVA
+        subtotal: parseFloat((item.subtotal / 1.21).toFixed(2)), // Subtotal sin IVA
       }));
 
       console.log("Order created:", order);
@@ -179,7 +197,6 @@ export default function PointOfSale() {
       setPaymentMethod("cash");
       setSearchTerm("");
       setDiscountAmount(0);
-      fetchProducts();
       
       toast.success(`¡Venta realizada! Total: ${totalAmount.toFixed(2)}€`);
     } catch (error: any) {
@@ -256,7 +273,10 @@ export default function PointOfSale() {
                         
                         <div className="space-y-1.5">
                           <div className="text-xl font-bold text-primary">
-                            {product.price.toFixed(2)}€
+                            {(product.price * 1.21).toFixed(2)}€
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {product.price.toFixed(2)}€ (sin IVA)
                           </div>
                           
                           <div className={`text-xs font-semibold px-2 py-1 rounded-md inline-block ${
@@ -360,7 +380,15 @@ export default function PointOfSale() {
                   <div className="border-t pt-4 space-y-3">
                     <div className="space-y-2 text-sm">
                       <div className="flex justify-between">
-                        <span>Subtotal:</span>
+                        <span>Subtotal (sin IVA):</span>
+                        <span>{(calculateSubtotal() / 1.21).toFixed(2)}€</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>IVA (21%):</span>
+                        <span>{(calculateSubtotal() - (calculateSubtotal() / 1.21)).toFixed(2)}€</span>
+                      </div>
+                      <div className="flex justify-between font-medium">
+                        <span>Subtotal (con IVA):</span>
                         <span>{calculateSubtotal().toFixed(2)}€</span>
                       </div>
                       
@@ -412,19 +440,19 @@ export default function PointOfSale() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="cash">
+                          <SelectItem value="Efectivo">
                             <div className="flex items-center gap-2">
                               <Banknote className="h-4 w-4" />
                               Efectivo
                             </div>
                           </SelectItem>
-                          <SelectItem value="card">
+                          <SelectItem value="Tarjeta">
                             <div className="flex items-center gap-2">
                               <CreditCard className="h-4 w-4" />
                               Tarjeta
                             </div>
                           </SelectItem>
-                          <SelectItem value="mixed">
+                          <SelectItem value="Mixto">
                             <div className="flex items-center gap-2">
                               <DollarSign className="h-4 w-4" />
                               Mixto

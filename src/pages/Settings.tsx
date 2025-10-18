@@ -46,6 +46,20 @@ interface StoreSettings {
   logo?: string;
 }
 
+interface FiscalSettings {
+  cif: string;
+  companyName: string;
+  fiscalAddress: string;
+  postalCode: string;
+  city: string;
+  province: string;
+  country: string;
+  bankName: string;
+  bankAccount: string;
+  ivaRate: number;
+  invoiceSeries: string;
+}
+
 interface AppearanceSettings {
   theme: 'light' | 'dark';
   primaryColor: string;
@@ -89,6 +103,20 @@ export default function Settings() {
     email: settings.storeEmail,
     website: settings.storeWebsite,
     logo: ""
+  });
+
+  const [fiscalSettings, setFiscalSettings] = useState<FiscalSettings>({
+    cif: settings.cif || "",
+    companyName: settings.companyName || "",
+    fiscalAddress: settings.fiscalAddress || "",
+    postalCode: settings.postalCode || "",
+    city: settings.city || "",
+    province: settings.province || "",
+    country: settings.country || "España",
+    bankName: settings.bankName || "",
+    bankAccount: settings.bankAccount || "",
+    ivaRate: settings.ivaRate || 21,
+    invoiceSeries: settings.invoiceSeries || "A"
   });
 
   const [appearanceSettings, setAppearanceSettings] = useState<AppearanceSettings>({
@@ -155,6 +183,31 @@ export default function Settings() {
     } catch (error) {
       console.error("Error guardando configuraciones:", error);
       toast.error("Error al guardar las configuraciones");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveFiscalSettings = async () => {
+    setSaving(true);
+    try {
+        updateSettings({
+          cif: fiscalSettings.cif,
+          companyName: fiscalSettings.companyName,
+          fiscalAddress: fiscalSettings.fiscalAddress,
+          postalCode: fiscalSettings.postalCode,
+          city: fiscalSettings.city,
+          province: fiscalSettings.province,
+          country: fiscalSettings.country,
+          bankName: fiscalSettings.bankName,
+          bankAccount: fiscalSettings.bankAccount,
+          ivaRate: fiscalSettings.ivaRate,
+          invoiceSeries: fiscalSettings.invoiceSeries
+        });
+      toast.success("Datos fiscales guardados correctamente");
+    } catch (error) {
+      console.error("Error guardando datos fiscales:", error);
+      toast.error("Error al guardar los datos fiscales");
     } finally {
       setSaving(false);
     }
@@ -259,10 +312,14 @@ export default function Settings() {
       </div>
 
       <Tabs defaultValue="store" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="store" className="flex items-center gap-2">
             <Store className="h-4 w-4" />
             Tienda
+          </TabsTrigger>
+          <TabsTrigger value="fiscal" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            Fiscal
           </TabsTrigger>
           <TabsTrigger value="appearance" className="flex items-center gap-2">
             <Palette className="h-4 w-4" />
@@ -352,6 +409,138 @@ export default function Settings() {
                 {saving ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
                 Guardar Configuración
               </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Datos Fiscales */}
+        <TabsContent value="fiscal" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Datos Fiscales
+              </CardTitle>
+              <CardDescription>
+                Configura la información fiscal de tu empresa para facturación
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cif">CIF/NIF</Label>
+                  <Input
+                    id="cif"
+                    value={fiscalSettings.cif}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, cif: e.target.value }))}
+                    placeholder="A12345678"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-name">Razón Social</Label>
+                  <Input
+                    id="company-name"
+                    value={fiscalSettings.companyName}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, companyName: e.target.value }))}
+                    placeholder="Mi Empresa SL"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="invoice-series">Serie de Factura</Label>
+                  <Input
+                    id="invoice-series"
+                    value={fiscalSettings.invoiceSeries}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, invoiceSeries: e.target.value }))}
+                    placeholder="A"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label htmlFor="fiscal-address">Dirección Fiscal</Label>
+                  <Textarea
+                    id="fiscal-address"
+                    value={fiscalSettings.fiscalAddress}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, fiscalAddress: e.target.value }))}
+                    placeholder="Calle Principal, 123"
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="postal-code">Código Postal</Label>
+                  <Input
+                    id="postal-code"
+                    value={fiscalSettings.postalCode}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, postalCode: e.target.value }))}
+                    placeholder="28001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">Ciudad</Label>
+                  <Input
+                    id="city"
+                    value={fiscalSettings.city}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, city: e.target.value }))}
+                    placeholder="Madrid"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="province">Provincia</Label>
+                  <Input
+                    id="province"
+                    value={fiscalSettings.province}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, province: e.target.value }))}
+                    placeholder="Madrid"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="country">País</Label>
+                  <Input
+                    id="country"
+                    value={fiscalSettings.country}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, country: e.target.value }))}
+                    placeholder="España"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bank-name">Banco</Label>
+                  <Input
+                    id="bank-name"
+                    value={fiscalSettings.bankName}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, bankName: e.target.value }))}
+                    placeholder="Banco Santander"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="bank-account">Cuenta Bancaria</Label>
+                  <Input
+                    id="bank-account"
+                    value={fiscalSettings.bankAccount}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, bankAccount: e.target.value }))}
+                    placeholder="ES12 1234 5678 9012 3456 7890"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="iva-rate">Tipo de IVA (%)</Label>
+                  <Input
+                    id="iva-rate"
+                    type="number"
+                    value={fiscalSettings.ivaRate}
+                    onChange={(e) => setFiscalSettings(prev => ({ ...prev, ivaRate: parseFloat(e.target.value) || 21 }))}
+                    placeholder="21"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button 
+                  onClick={() => handleSaveFiscalSettings()}
+                  disabled={saving}
+                >
+                  <Save className="mr-2 h-4 w-4" />
+                  {saving ? 'Guardando...' : 'Guardar Datos Fiscales'}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
