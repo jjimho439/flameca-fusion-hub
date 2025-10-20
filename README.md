@@ -71,7 +71,7 @@
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/tu-usuario/flamenco-fusion-hub.git
+git clone https://github.com/jjimho439/flamenco-fusion-hub.git
 cd flamenco-fusion-hub
 
 # 2. Instalar dependencias
