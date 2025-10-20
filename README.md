@@ -58,19 +58,6 @@
 
 ---
 
-## 📱 **Capturas de Pantalla**
-
-### Dashboard Principal
-![Dashboard](https://via.placeholder.com/800x400/6366f1/ffffff?text=Dashboard+Principal)
-
-### TPV (Punto de Venta)
-![TPV](https://via.placeholder.com/800x400/10b981/ffffff?text=Sistema+TPV)
-
-### Gestión de Productos
-![Productos](https://via.placeholder.com/800x400/f59e0b/ffffff?text=Gestión+de+Productos)
-
----
-
 ## 🛠️ **Instalación y Configuración**
 
 ### **Prerrequisitos**
@@ -205,30 +192,12 @@ Este proyecto está bajo la Licencia MIT. Ver el archivo [LICENSE](LICENSE) para
 
 ---
 
-## 👨‍💻 **Desarrollado por**
-
-**OneWeek - Desarrolladores con IA**
-
-> Proyecto desarrollado como parte del proceso de selección para desarrolladores especializados en IA.
-
----
-
-## 📞 **Soporte**
-
-¿Necesitas ayuda? 
-
-- 📧 **Email**: soporte@flamencafusion.com
-- 💬 **Discord**: [Únete a nuestra comunidad](https://discord.gg/flamencafusion)
-- 📖 **Documentación**: [Ver documentación completa](DOCUMENTACION_TECNICA.md)
-
----
-
 <div align="center">
 
 ### ⭐ **¡Dale una estrella si te gusta el proyecto!** ⭐
 
-[![GitHub stars](https://img.shields.io/github/stars/tu-usuario/flamenco-fusion-hub?style=social)](https://github.com/tu-usuario/flamenco-fusion-hub/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/tu-usuario/flamenco-fusion-hub?style=social)](https://github.com/tu-usuario/flamenco-fusion-hub/network)
+[![GitHub stars](https://img.shields.io/github/stars/jjimho439/flamenco-fusion-hub?style=social)](https://github.com/jjimho439/flamenco-fusion-hub/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/jjimho439/flamenco-fusion-hub?style=social)](https://github.com/jjimho439/flamenco-fusion-hub/network)
 
 **Hecho con ❤️ para la comunidad flamenca**
 
