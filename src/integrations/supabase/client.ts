@@ -2,7 +2,11 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+// Use proxy in development, direct URL in production
+const SUPABASE_URL = import.meta.env.DEV 
+  ? `${window.location.origin}/api` // Use proxy in development with full URL
+  : import.meta.env.VITE_SUPABASE_URL; // Direct URL in production
+
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
 // Import the supabase client like this:

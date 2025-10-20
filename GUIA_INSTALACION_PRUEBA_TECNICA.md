@@ -613,6 +613,100 @@ curl -u "consumer_key:consumer_secret" \
 
 ---
 
+## 🌐 **Exponer la Aplicación con ngrok**
+
+### **¿Qué es ngrok?**
+ngrok permite exponer tu aplicación local a internet de forma segura, ideal para:
+- **Demostraciones** en vivo
+- **Testing** desde dispositivos móviles
+- **Compartir** la aplicación con otros
+- **Webhooks** de servicios externos
+
+### **Configuración de ngrok**
+```bash
+# 1. Instalar ngrok (si no lo tienes)
+# macOS: brew install ngrok/ngrok/ngrok
+# Linux: Descargar desde https://ngrok.com/download
+# Windows: Descargar desde https://ngrok.com/download
+
+# 2. Autenticarse (opcional, para URLs personalizadas)
+ngrok config add-authtoken tu_token_aqui
+
+# 3. Exponer el puerto 8080
+ngrok http 8080
+```
+
+### **URLs de Acceso con ngrok**
+Una vez ejecutado `ngrok http 8080`, tendrás:
+- **URL pública**: `https://xxxxx.ngrok-free.app`
+- **URL local**: `http://localhost:8080`
+- **Dashboard ngrok**: `http://localhost:4040`
+
+### **Configuración Automática**
+El proyecto ya está configurado para aceptar hosts de ngrok y proxy de API:
+```typescript
+// vite.config.ts
+server: {
+  allowedHosts: [
+    "localhost",
+    "127.0.0.1",
+    ".ngrok.io",
+    ".ngrok-free.app", 
+    ".ngrok-free.dev",
+    ".ngrok.app",
+    ".ngrok.dev"
+  ],
+  // PROXY: Redirige /api/* a Supabase local (puerto 54321)
+  proxy: {
+    '/api': {
+      target: 'http://localhost:54321',
+      changeOrigin: true,
+      secure: false,
+      rewrite: (path) => path.replace(/^\/api/, ''),
+    }
+  }
+}
+```
+
+### **¿Cómo Funciona el Proxy?**
+- **Frontend** (puerto 8080) → **ngrok** → **Internet**
+- **API calls** `/api/*` → **Proxy** → **Supabase local** (puerto 54321)
+- **Sin CORS**: El proxy maneja las peticiones internamente
+- **Transparente**: El frontend no sabe que hay un proxy
+
+### **Comandos Útiles de ngrok**
+```bash
+# Exponer puerto específico
+ngrok http 8080
+
+# Exponer con subdominio personalizado (requiere cuenta)
+ngrok http 8080 --subdomain=flamenco-fusion
+
+# Ver estadísticas
+ngrok http 8080 --log=stdout
+
+# Exponer múltiples puertos
+ngrok start --all
+```
+
+### **Troubleshooting ngrok**
+```bash
+# Si aparece "Blocked request"
+# Verificar que el host esté en allowedHosts
+# Reiniciar el servidor de desarrollo
+npm run dev
+
+# Si ngrok no conecta
+# Verificar que el puerto 8080 esté libre
+lsof -i :8080  # macOS/Linux
+netstat -ano | findstr :8080  # Windows
+
+# Verificar configuración de ngrok
+ngrok config check
+```
+
+---
+
 ## 🎉 **¡Instalación Completada!**
 
 Una vez completados todos los pasos, tendrás:
