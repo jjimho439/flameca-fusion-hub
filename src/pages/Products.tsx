@@ -14,10 +14,12 @@ import { toast } from "sonner";
 import { Plus, Edit, Trash2, Package, RefreshCw, Search, Loader2 } from "lucide-react";
 import { Product } from "@/types";
 import { useWooCommerceProducts } from "@/hooks/useWooCommerceProducts";
+import { useAutoNotifications } from "@/hooks/useAutoNotifications";
 import { PermissionGate } from "@/components/PermissionGate";
 
 export default function Products() {
   const { products, loading, refetch, fetchProducts, syncProducts } = useWooCommerceProducts();
+  const { notifyLowStock, notifyOutOfStock } = useAutoNotifications();
   const [searchTerm, setSearchTerm] = useState("");
   const [stockFilter, setStockFilter] = useState<"all" | "in-stock" | "low-stock" | "very-low-stock" | "out-of-stock">("all");
   
@@ -94,6 +96,10 @@ export default function Products() {
       };
 
       if (editingProduct) {
+        // Obtener el stock anterior para comparar
+        const oldStock = editingProduct.stock_quantity || 0;
+        const newStock = productData.stock_quantity || 0;
+        
         // Actualizar producto existente en WooCommerce
         const { error } = await supabase.functions.invoke('sync-woocommerce-products', {
           body: { 
@@ -104,6 +110,27 @@ export default function Products() {
         });
 
         if (error) throw error;
+        
+        // Enviar notificaciones si el stock cambió significativamente
+        if (oldStock !== newStock) {
+          
+          if (newStock === 0) {
+            // Stock agotado
+            await notifyOutOfStock([{
+              id: editingProduct.id.toString(),
+              name: editingProduct.name,
+              stock: newStock
+            }]);
+          } else if (newStock <= 2 && oldStock > 2) {
+            // Stock bajo (solo notificar si antes tenía más de 2)
+            await notifyLowStock([{
+              id: editingProduct.id.toString(),
+              name: editingProduct.name,
+              stock: newStock
+            }]);
+          }
+        }
+        
         toast.success("Producto actualizado en WooCommerce");
       } else {
         // Crear nuevo producto en WooCommerce

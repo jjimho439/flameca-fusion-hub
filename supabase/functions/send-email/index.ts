@@ -112,7 +112,32 @@ serve(async (req) => {
 
     // Enviar email usando Resend (simulado para desarrollo)
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const fromEmail = Deno.env.get("FROM_EMAIL") || "noreply@flamenca.com";
+    const fromEmail = Deno.env.get("FROM_EMAIL") || "onboarding@resend.dev";
+    
+    // Determinar el email de destino
+    let targetEmail = to; // Por defecto usar el email del destinatario
+    
+    // Si se proporciona user_id, intentar obtener el email desde la configuración
+    if (user_id) {
+      try {
+        const { data: userSettings, error: userError } = await supabaseAdmin
+          .from("notification_settings")
+          .select("email_address")
+          .eq("user_id", user_id)
+          .single();
+        
+        if (!userError && userSettings?.email_address) {
+          targetEmail = userSettings.email_address;
+          console.log("Using user email from settings:", targetEmail);
+        } else {
+          console.log("No user email found in settings, using original recipient:", to);
+        }
+      } catch (error) {
+        console.log("Error fetching user email, using original recipient:", to);
+      }
+    } else {
+      console.log("No user_id provided, using original recipient:", to);
+    }
 
     let providerId = null;
     let status = "sent";
@@ -125,7 +150,7 @@ serve(async (req) => {
         
         const emailData: any = {
           from: fromEmail,
-          to: [to],
+          to: [targetEmail], // Usar email del usuario (admin o encargado) configurado en la app
           subject: finalSubject,
           html: finalBody.replace(/\n/g, '<br>'),
         };
@@ -155,9 +180,11 @@ serve(async (req) => {
           console.log("Email sent successfully via Resend:", providerId);
         } else {
           const errorData = await resendResponse.text();
-          console.error("Resend error:", errorData);
+          console.error("Resend error response:", errorData);
+          console.error("Resend status:", resendResponse.status);
+          console.error("Resend headers:", Object.fromEntries(resendResponse.headers.entries()));
           status = "failed";
-          errorMessage = `Resend error: ${resendResponse.status}`;
+          errorMessage = `Resend error: ${resendResponse.status} - ${errorData}`;
         }
       } catch (resendError) {
         console.error("Error calling Resend API:", resendError);

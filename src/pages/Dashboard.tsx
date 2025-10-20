@@ -8,7 +8,6 @@ import { Package, ClipboardList, AlertCircle, Users, DollarSign, TrendingUp, Sho
 import { useNavigate } from "react-router-dom";
 import { Order, Product, DashboardStats } from "@/types";
 import { toast } from "sonner";
-import { NotificationTester } from "@/components/NotificationTester";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -515,12 +514,6 @@ export default function Dashboard() {
         </CardContent>
       </Card>
 
-      {/* Probador de notificaciones - Solo para desarrollo */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mt-6">
-          <NotificationTester />
-        </div>
-      )}
     </div>
   );
 }

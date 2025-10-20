@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useNotificationContext } from '@/contexts/NotificationContext';
+import { useAutoNotifications } from './useAutoNotifications';
 
 interface WooCommerceOrder {
   id: number;
@@ -28,6 +29,7 @@ interface WooCommerceProduct {
 
 export const useWooCommercePolling = () => {
   const { addNotification } = useNotificationContext();
+  const { notifyNewOrder } = useAutoNotifications();
   const lastOrderId = useRef<number | null>(null);
   const lastProductStocks = useRef<Map<number, number>>(new Map());
   const isPolling = useRef(false);
@@ -38,7 +40,6 @@ export const useWooCommercePolling = () => {
       isPolling.current = true;
 
       try {
-        console.log('🔍 Consultando WooCommerce para nuevos pedidos...');
         
         // Llamar a nuestra Edge Function que consulta WooCommerce
         const response = await fetch('http://localhost:54321/functions/v1/sync-woocommerce-orders', {
@@ -88,7 +89,6 @@ export const useWooCommercePolling = () => {
                 });
                 
                 if (syncResponse.ok) {
-                  console.log('✅ Pedido sincronizado correctamente:', order.id);
                 } else {
                   console.error('❌ Error sincronizando pedido:', order.id);
                 }
@@ -96,13 +96,28 @@ export const useWooCommercePolling = () => {
                 console.error('❌ Error en sincronización:', error);
               }
               
-              // Crear notificación
+              // Crear notificación local
               addNotification({
                 type: 'new_order',
                 title: '🛍️ Nuevo Pedido WooCommerce',
                 message: `Pedido #${order.id} de ${order.billing.first_name} ${order.billing.last_name} - Total: €${order.total}`,
                 section: 'orders'
               });
+              
+              // Enviar notificaciones móviles
+              try {
+                await notifyNewOrder({
+                  order_id: order.id.toString(),
+                  customer_name: `${order.billing.first_name} ${order.billing.last_name}`,
+                  total_amount: parseFloat(order.total),
+                  items: order.line_items.map(item => ({
+                    name: item.name,
+                    quantity: item.quantity
+                  }))
+                });
+              } catch (error) {
+                console.error('❌ Error enviando notificaciones móviles:', error);
+              }
               
               // Actualizar el último ID conocido
               lastOrderId.current = order.id;
@@ -111,7 +126,6 @@ export const useWooCommercePolling = () => {
         }
 
         // Consultar productos para verificar stock
-        console.log('🔍 Consultando productos para verificar stock...');
         const productsResponse = await fetch('http://localhost:54321/functions/v1/sync-woocommerce-products', {
           method: 'POST',
           headers: {
@@ -135,7 +149,6 @@ export const useWooCommercePolling = () => {
               if (lastStock !== undefined) {
                 // Verificar cambios de stock
                 if (product.stock_quantity !== lastStock) {
-                  console.log(`📦 Cambio de stock detectado: ${product.name} (${lastStock} → ${product.stock_quantity})`);
                   
                   let notificationType = '';
                   let title = '';

@@ -69,3 +69,4 @@ CREATE TRIGGER update_holded_documents_updated_at
 CREATE TRIGGER update_holded_contacts_updated_at 
   BEFORE UPDATE ON holded_contacts 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+

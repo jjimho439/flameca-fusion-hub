@@ -102,15 +102,64 @@ serve(async (req) => {
       throw insertError;
     }
 
-    // MODO TESTING - Simular envío exitoso siempre
-    const twilioSid = `test_sms_${Date.now()}`;
-    const status = "sent";
-    const errorMessage = null;
+    // Enviar SMS real usando Twilio
+    let twilioSid = null;
+    let status = "failed";
+    let errorMessage = null;
     
-    console.log("🧪 TESTING MODE: SMS simulated successfully");
-    console.log("📱 Would send SMS to:", phone);
-    console.log("💬 Message:", finalMessage);
-    console.log("🆔 Test ID:", twilioSid);
+    try {
+      // Verificar si las API keys de Twilio están configuradas
+      const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const twilioPhoneNumber = Deno.env.get("TWILIO_PHONE_NUMBER");
+      
+      if (!twilioAccountSid || !twilioAuthToken || !twilioPhoneNumber) {
+        console.log("🧪 TESTING MODE: Twilio API keys not configured");
+        console.log("📱 Would send SMS to:", phone);
+        console.log("💬 Message:", finalMessage);
+        
+        // Modo testing
+        twilioSid = `test_sms_${Date.now()}`;
+        status = "sent";
+        errorMessage = null;
+      } else {
+        console.log("📱 Sending real SMS via Twilio to:", phone);
+        
+        // Enviar SMS real usando Twilio
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+        
+        const formData = new URLSearchParams();
+        formData.append('To', phone);
+        formData.append('From', twilioPhoneNumber);
+        formData.append('Body', finalMessage);
+        
+        const response = await fetch(twilioUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          twilioSid = result.sid;
+          status = "sent";
+          errorMessage = null;
+          console.log("✅ SMS sent successfully via Twilio:", twilioSid);
+        } else {
+          status = "failed";
+          errorMessage = result.message || "Unknown Twilio error";
+          console.error("❌ Twilio SMS failed:", errorMessage);
+        }
+      }
+    } catch (error) {
+      status = "failed";
+      errorMessage = error.message;
+      console.error("❌ Error sending SMS:", error);
+    }
 
     // Actualizar el estado de la notificación
     const { error: updateError } = await supabaseAdmin

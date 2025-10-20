@@ -102,15 +102,64 @@ serve(async (req) => {
       throw insertError;
     }
 
-    // MODO TESTING - Simular envío exitoso siempre
-    const twilioSid = `test_whatsapp_${Date.now()}`;
-    const status = "sent";
-    const errorMessage = null;
+    // Enviar WhatsApp real usando Twilio
+    let twilioSid = null;
+    let status = "failed";
+    let errorMessage = null;
     
-    console.log("🧪 TESTING MODE: WhatsApp simulated successfully");
-    console.log("📱 Would send WhatsApp to:", phone);
-    console.log("💬 Message:", finalMessage);
-    console.log("🆔 Test ID:", twilioSid);
+    try {
+      // Verificar si las API keys de Twilio están configuradas
+      const twilioAccountSid = Deno.env.get("TWILIO_ACCOUNT_SID");
+      const twilioAuthToken = Deno.env.get("TWILIO_AUTH_TOKEN");
+      const twilioWhatsAppNumber = Deno.env.get("TWILIO_WHATSAPP_NUMBER");
+      
+      if (!twilioAccountSid || !twilioAuthToken || !twilioWhatsAppNumber) {
+        console.log("🧪 TESTING MODE: Twilio WhatsApp API keys not configured");
+        console.log("📱 Would send WhatsApp to:", phone);
+        console.log("💬 Message:", finalMessage);
+        
+        // Modo testing
+        twilioSid = `test_whatsapp_${Date.now()}`;
+        status = "sent";
+        errorMessage = null;
+      } else {
+        console.log("💬 Sending real WhatsApp via Twilio to:", phone);
+        
+        // Enviar WhatsApp real usando Twilio
+        const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${twilioAccountSid}/Messages.json`;
+        
+        const formData = new URLSearchParams();
+        formData.append('To', `whatsapp:${phone}`);
+        formData.append('From', `whatsapp:${twilioWhatsAppNumber}`);
+        formData.append('Body', finalMessage);
+        
+        const response = await fetch(twilioUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${btoa(`${twilioAccountSid}:${twilioAuthToken}`)}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: formData,
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+          twilioSid = result.sid;
+          status = "sent";
+          errorMessage = null;
+          console.log("✅ WhatsApp sent successfully via Twilio:", twilioSid);
+        } else {
+          status = "failed";
+          errorMessage = result.message || "Unknown Twilio error";
+          console.error("❌ Twilio WhatsApp failed:", errorMessage);
+        }
+      }
+    } catch (error) {
+      status = "failed";
+      errorMessage = error.message;
+      console.error("❌ Error sending WhatsApp:", error);
+    }
 
     // Actualizar el estado de la notificación
     const { error: updateError } = await supabaseAdmin

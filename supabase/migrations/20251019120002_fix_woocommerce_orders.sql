@@ -12,3 +12,4 @@ WHERE status NOT IN ('pending', 'completed');
 
 -- Add comment to explain the change
 COMMENT ON COLUMN public.orders.status IS 'Order status: pending (default) or completed (after invoicing)';
+

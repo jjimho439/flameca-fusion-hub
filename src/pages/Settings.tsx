@@ -36,6 +36,7 @@ import {
 import { useUserRole } from "@/hooks/useUserRole";
 import { useAppSettings, themePresets } from "@/hooks/useAppSettings";
 import { useTheme } from "@/hooks/useTheme";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StoreSettings {
   name: string;
@@ -135,6 +136,41 @@ export default function Settings() {
     adminEmail: "admin@flamenca.com",
     whatsappNumber: "+34698948449"
   });
+
+  // Cargar configuración de notificaciones existente
+  useEffect(() => {
+    const loadNotificationSettings = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('notification_settings')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error cargando configuración de notificaciones:', error);
+          return;
+        }
+
+        if (data) {
+          setNotificationSettings({
+            smsEnabled: data.sms_enabled || false,
+            whatsappEnabled: data.whatsapp_enabled || false,
+            emailEnabled: data.email_enabled || true,
+            adminPhone: data.sms_phone || "+34698948449",
+            adminEmail: data.email_address || "admin@flamenca.com",
+            whatsappNumber: data.whatsapp_phone || "+34698948449"
+          });
+        }
+      } catch (error) {
+        console.error('Error cargando configuración de notificaciones:', error);
+      }
+    };
+
+    loadNotificationSettings();
+  }, [user?.id]);
 
   const [systemSettings, setSystemSettings] = useState<SystemSettings>({
     woocommerceUrl: "",
@@ -241,8 +277,33 @@ export default function Settings() {
   const saveNotificationSettings = async () => {
     setSaving(true);
     try {
-      // Aquí guardarías las configuraciones de notificaciones
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Obtener el ID del usuario actual
+      if (!user?.id) {
+        toast.error("No se pudo obtener el ID del usuario");
+        return;
+      }
+
+      // Guardar en la base de datos
+      const { error } = await supabase
+        .from('notification_settings')
+        .upsert({
+          user_id: user.id,
+          sms_enabled: notificationSettings.smsEnabled,
+          whatsapp_enabled: notificationSettings.whatsappEnabled,
+          email_enabled: notificationSettings.emailEnabled,
+          push_enabled: false,
+          sms_phone: notificationSettings.adminPhone,
+          whatsapp_phone: notificationSettings.whatsappNumber,
+          email_address: notificationSettings.adminEmail,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        console.error("Error guardando configuraciones:", error);
+        toast.error("Error al guardar las configuraciones: " + error.message);
+        return;
+      }
+
       toast.success("Notificaciones guardadas correctamente");
     } catch (error) {
       console.error("Error guardando configuraciones:", error);

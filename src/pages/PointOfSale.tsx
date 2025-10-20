@@ -12,6 +12,7 @@ import { LoadingSpinner, LoadingOverlay } from "@/components/LoadingSpinner";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useWooCommerceProducts } from "@/hooks/useWooCommerceProducts";
 import { useNotifications } from "@/hooks/useNotifications";
+import { useAutoNotifications } from "@/hooks/useAutoNotifications";
 import { toast } from "sonner";
 import { ShoppingCart, Trash2, CreditCard, Banknote, Plus, Minus, Search, DollarSign, Percent, Loader2 } from "lucide-react";
 import { Product, CartItem } from "@/types";
@@ -20,6 +21,7 @@ export default function PointOfSale() {
   const { can } = useUserRole();
   const { products, loading: productsLoading, updateProductStock } = useWooCommerceProducts();
   const { showPromise } = useNotifications();
+  const { notifyLowStock, notifyOutOfStock } = useAutoNotifications();
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -176,16 +178,47 @@ export default function PointOfSale() {
 
       if (itemsError) throw itemsError;
 
-      // 3. Actualizar stock de productos en WooCommerce
+      // 3. Actualizar stock de productos en WooCommerce y enviar notificaciones si es necesario
       for (const item of cartItems) {
         const product = products.find(p => p.id === item.product_id);
         if (!product) continue;
 
+        const oldStock = product.stock;
         const newStock = product.stock - item.quantity;
         
         // Actualizar stock usando el hook
         try {
           await updateProductStock(product.id, newStock);
+          
+          // Enviar notificaciones de stock si es necesario
+          if (oldStock !== newStock) {
+            
+            if (newStock === 0) {
+              // Stock agotado
+              try {
+                const result = await notifyOutOfStock([{
+                  id: product.id.toString(),
+                  name: product.name,
+                  stock: newStock
+                }]);
+              } catch (error) {
+                console.error(`❌ Error enviando notificación stock agotado:`, error);
+              }
+            } else if (newStock <= 2 && oldStock > 2) {
+              // Stock bajo (solo notificar si antes tenía más de 2)
+              try {
+                const result = await notifyLowStock([{
+                  id: product.id.toString(),
+                  name: product.name,
+                  stock: newStock
+                }]);
+              } catch (error) {
+                console.error(`❌ Error enviando notificación stock bajo:`, error);
+              }
+            } else {
+            }
+          } else {
+          }
         } catch (syncError) {
           console.error("Error actualizando stock en WooCommerce:", syncError);
           // No lanzar error para no interrumpir la venta

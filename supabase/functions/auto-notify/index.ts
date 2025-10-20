@@ -55,6 +55,19 @@ serve(async (req) => {
       );
     }
 
+    // Obtener configuración de notificaciones de los encargados
+    const { data: managerSettings, error: managerSettingsError } = await supabaseAdmin
+      .from("notification_settings")
+      .select(`
+        *,
+        profiles!inner(full_name)
+      `)
+      .in("user_id", (await getManagerUserIds(supabaseAdmin)));
+
+    if (managerSettingsError) {
+      console.error("Error fetching manager settings:", managerSettingsError);
+    }
+
     let notificationSent = false;
 
     switch (type) {
@@ -63,32 +76,32 @@ serve(async (req) => {
         break;
       
       case 'new_order':
-        notificationSent = await handleNewOrder(supabaseAdmin, data, adminSettings);
+        notificationSent = await handleNewOrder(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       case 'low_stock':
-        notificationSent = await handleLowStock(supabaseAdmin, data, adminSettings);
+        notificationSent = await handleLowStock(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       case 'critical_stock':
-        notificationSent = await handleCriticalStock(supabaseAdmin, data, adminSettings);
+        notificationSent = await handleCriticalStock(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       case 'out_of_stock':
-        notificationSent = await handleOutOfStock(supabaseAdmin, data, adminSettings);
+        notificationSent = await handleOutOfStock(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       case 'check_in':
       case 'check_out':
-        notificationSent = await handleCheckInOut(supabaseAdmin, data, adminSettings, type);
+        notificationSent = await handleCheckInOut(supabaseAdmin, data, adminSettings, type, managerSettings);
         break;
       
       case 'incident':
-        notificationSent = await handleIncident(supabaseAdmin, data, adminSettings);
+        notificationSent = await handleIncident(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       case 'payment_issue':
-        notificationSent = await handlePaymentIssue(supabaseAdmin, data, adminSettings);
+        notificationSent = await handlePaymentIssue(supabaseAdmin, data, adminSettings, managerSettings);
         break;
       
       default:
@@ -162,6 +175,21 @@ async function getAdminUserId(supabaseAdmin: any): Promise<string> {
   return adminRole.user_id;
 }
 
+// Helper function to get manager user IDs
+async function getManagerUserIds(supabaseAdmin: any): Promise<string[]> {
+  const { data: managerRoles, error } = await supabaseAdmin
+    .from("user_roles")
+    .select("user_id")
+    .eq("role", "manager");
+
+  if (error) {
+    console.error("Error fetching manager roles:", error);
+    return [];
+  }
+
+  return managerRoles?.map(role => role.user_id) || [];
+}
+
 // Helper function to get employees on active shift
 async function getActiveEmployees(supabaseAdmin: any): Promise<any[]> {
   try {
@@ -191,30 +219,52 @@ async function getActiveEmployees(supabaseAdmin: any): Promise<any[]> {
 async function handlePasswordReset(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
   const { employee_phone, temp_password, employee_name } = data;
   
-  if (!adminSettings.sms_enabled || !employee_phone) {
+  console.log("Password reset request:", { employee_phone, employee_name, has_temp_password: !!temp_password });
+  
+  // Verificar que tenemos el teléfono del empleado
+  if (!employee_phone) {
+    console.log("No employee phone provided for password reset");
     return false;
   }
 
   const message = `¡Hola ${employee_name}! Tu contraseña temporal es: ${temp_password}. Por favor, cámbiala en tu próximo inicio de sesión. - Flamenca Store`;
 
   try {
-    const { data: result, error } = await supabaseAdmin.functions.invoke("send-sms", {
-      body: {
+    console.log(`Sending password reset SMS to: ${employee_phone}`);
+    
+    // Llamar directamente a la función send-sms usando fetch
+    const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-sms`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`
+      },
+      body: JSON.stringify({
         phone: employee_phone,
         message: message,
         user_id: data.employee_id,
-      },
+      })
     });
 
-    return !error;
+    const result = await response.json();
+    
+    console.log("SMS response:", { status: response.status, result });
+    
+    if (!response.ok) {
+      console.error("Error sending password reset SMS:", result);
+      return false;
+    }
+
+    console.log("Password reset SMS sent successfully:", result);
+    return result.success === true && result.status === "sent";
   } catch (error) {
     console.error("Error sending password reset SMS:", error);
     return false;
   }
 }
 
-// Handle new order notifications (WhatsApp only to admin)
-async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
+// Handle new order notifications (WhatsApp to admin and managers)
+async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any, managerSettings: any[] = []): Promise<boolean> {
   // Manejar diferentes formatos de datos (WooCommerce vs interno)
   const order_id = data.id || data.order_id;
   const customer_name = data.billing ? 
@@ -231,27 +281,57 @@ async function handleNewOrder(supabaseAdmin: any, data: any, adminSettings: any)
   const message = `🛍️ NUEVO PEDIDO #${order_id}\nCliente: ${customer_name}\nTotal: ${total_amount}€\nProductos: ${itemsText}${moreItems}\n\nFlamenca Store`;
 
   try {
-    // Solo enviar WhatsApp al admin
-    if (adminSettings.whatsapp_enabled && adminSettings.whatsapp_phone) {
-      const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
-        body: {
-          phone: adminSettings.whatsapp_phone,
-          message: message,
-          user_id: adminSettings.user_id,
-        },
-      });
+    let notificationsSent = 0;
 
-      if (!error) {
-        console.log("New order WhatsApp sent to admin");
-        return true;
-      } else {
-        console.error("Error sending new order WhatsApp:", error);
-        return false;
+    // 1. Enviar WhatsApp al admin
+    if (adminSettings.whatsapp_enabled && adminSettings.whatsapp_phone) {
+      try {
+        const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
+          body: {
+            phone: adminSettings.whatsapp_phone,
+            message: message,
+            user_id: adminSettings.user_id,
+          },
+        });
+
+        if (!error) {
+          notificationsSent++;
+          console.log("New order WhatsApp sent to admin");
+        } else {
+          console.error("Error sending new order WhatsApp to admin:", error);
+        }
+      } catch (error) {
+        console.error("Error sending new order WhatsApp to admin:", error);
       }
-    } else {
-      console.log("WhatsApp not enabled for admin, skipping new order notification");
-      return false;
     }
+
+    // 2. Enviar WhatsApp a los encargados
+    if (managerSettings && managerSettings.length > 0) {
+      for (const manager of managerSettings) {
+        if (manager.whatsapp_enabled && manager.whatsapp_phone) {
+          try {
+            const { data: result, error } = await supabaseAdmin.functions.invoke("send-whatsapp", {
+              body: {
+                phone: manager.whatsapp_phone,
+                message: message,
+                user_id: manager.user_id,
+              },
+            });
+
+            if (!error) {
+              notificationsSent++;
+              console.log(`New order WhatsApp sent to manager: ${manager.profiles?.full_name || manager.user_id}`);
+            } else {
+              console.error(`Error sending new order WhatsApp to manager ${manager.user_id}:`, error);
+            }
+          } catch (error) {
+            console.error(`Error sending new order WhatsApp to manager ${manager.user_id}:`, error);
+          }
+        }
+      }
+    }
+
+    return notificationsSent > 0;
 
   } catch (error) {
     console.error("Error sending new order notification:", error);
@@ -334,7 +414,7 @@ async function handleLowStock(supabaseAdmin: any, data: any, adminSettings: any)
 }
 
 // Handle out of stock notifications (Email + SMS + WhatsApp - ALL CHANNELS)
-async function handleOutOfStock(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
+async function handleOutOfStock(supabaseAdmin: any, data: any, adminSettings: any, managerSettings: any[] = []): Promise<boolean> {
   // Manejar diferentes formatos de datos (WooCommerce vs interno)
   const products = data.products || (data.name ? [data] : []);
   
@@ -422,6 +502,43 @@ async function handleOutOfStock(supabaseAdmin: any, data: any, adminSettings: an
       }
     }
 
+    // 4. Enviar EMAIL a los encargados (si están habilitados)
+    if (managerSettings && managerSettings.length > 0) {
+      for (const manager of managerSettings) {
+        if (manager.email_enabled && manager.email_address) {
+          try {
+            const emailSubject = `🚨 STOCK AGOTADO - Flamenca Store`;
+            const emailBody = `
+              <h2 style="color: red;">🚨 ALERTA: PRODUCTOS AGOTADOS</h2>
+              <p><strong>Los siguientes productos están completamente agotados:</strong></p>
+              <ul>
+                ${products.map((product: any) => `<li><strong>${product.name}:</strong> ${product.stock} unidades</li>`).join('')}
+              </ul>
+              <p style="color: red; font-weight: bold;">🚨 ACCIÓN INMEDIATA REQUERIDA: Realizar pedido de emergencia URGENTE.</p>
+              <hr>
+              <p><em>Flamenca Store - Sistema de Gestión</em></p>
+            `;
+
+            const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+              body: {
+                to: manager.email_address,
+                subject: emailSubject,
+                body: emailBody,
+                user_id: manager.user_id,
+              },
+            });
+
+            if (!emailError) {
+              notificationsSent++;
+              console.log(`Out of stock EMAIL sent to manager: ${manager.profiles?.full_name || manager.user_id}`);
+            }
+          } catch (error) {
+            console.error(`Error sending out of stock email to manager ${manager.user_id}:`, error);
+          }
+        }
+      }
+    }
+
     return notificationsSent > 0;
   } catch (error) {
     console.error("Error sending out of stock notifications:", error);
@@ -487,7 +604,7 @@ async function handleCheckInOut(supabaseAdmin: any, data: any, adminSettings: an
 }
 
 // Handle incident notifications (Email + SMS)
-async function handleIncident(supabaseAdmin: any, data: any, adminSettings: any): Promise<boolean> {
+async function handleIncident(supabaseAdmin: any, data: any, adminSettings: any, managerSettings: any[] = []): Promise<boolean> {
   const { incident_title, incident_type, reported_by, priority } = data;
   
   const priorityEmoji = priority === 'high' ? '🚨' : priority === 'medium' ? '⚠️' : 'ℹ️';
@@ -548,6 +665,43 @@ async function handleIncident(supabaseAdmin: any, data: any, adminSettings: any)
         }
       } catch (error) {
         console.error("Error sending incident SMS:", error);
+      }
+    }
+
+    // 3. Enviar EMAIL a los encargados (si están habilitados)
+    if (managerSettings && managerSettings.length > 0) {
+      for (const manager of managerSettings) {
+        if (manager.email_enabled && manager.email_address) {
+          try {
+            const emailSubject = `${priorityEmoji} Incidencia ${priority.toUpperCase()} - Flamenca Store`;
+            const emailBody = `
+              <h2 style="color: ${priorityColor};">${priorityEmoji} Nueva Incidencia Reportada</h2>
+              <p><strong>Prioridad:</strong> <span style="color: ${priorityColor}; font-weight: bold;">${priority.toUpperCase()}</span></p>
+              <p><strong>Tipo:</strong> ${incident_type}</p>
+              <p><strong>Título:</strong> ${incident_title}</p>
+              <p><strong>Reportado por:</strong> ${reported_by}</p>
+              <p><strong>Fecha:</strong> ${new Date().toLocaleString('es-ES')}</p>
+              <hr>
+              <p><em>Flamenca Store - Sistema de Gestión</em></p>
+            `;
+
+            const { data: emailResult, error: emailError } = await supabaseAdmin.functions.invoke("send-email", {
+              body: {
+                to: manager.email_address,
+                subject: emailSubject,
+                body: emailBody,
+                user_id: manager.user_id,
+              },
+            });
+
+            if (!emailError) {
+              notificationsSent++;
+              console.log(`Incident EMAIL sent to manager: ${manager.profiles?.full_name || manager.user_id}`);
+            }
+          } catch (error) {
+            console.error(`Error sending incident email to manager ${manager.user_id}:`, error);
+          }
+        }
       }
     }
 
